@@ -1,0 +1,6 @@
+{
+	"extends": "@seabass",
+	"parser": "babel-eslint",
+	"rules": {
+	}
+}

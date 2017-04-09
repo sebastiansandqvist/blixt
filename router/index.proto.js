@@ -5,6 +5,26 @@ function splitRoute(string) {
 }
 
 
+// function getParams(routeSegments, urlSegments) {
+// 	const params = {};
+// 	for (let i = 0; i < routeSegments.length; i++) {
+// 		if (routeSegments[i][0] === ':') {
+// 			params[routeSegments[i].slice(1)] = urlSegments[i];
+// 		}
+// 	}
+// 	return params;
+// }
+
+// function isMatch(routeSegments, urlSegments) {
+// 	if (routeSegments.length !== urlSegments.length) { return false; }
+// 	for (let i = 0; i < routeSegments.length; i++) {
+// 		if (routeSegments[i][0] === ':') { continue; }
+// 		if (routeSegments[i] !== urlSegments[i]) { return false; }
+// 	}
+// 	return true;
+// }
+
+
 // merge both loops (getParams and isMatch):
 function getParamsIfMatch(routeSegments, urlSegments) {
 	if (routeSegments.length !== urlSegments.length) { return null; }
@@ -39,28 +59,19 @@ function getMatch(routeMap, url) {
 
 export default function router(routes) {
 
-	if (routes['*'] === undefined) {
-		throw new Error('Blixt router requires catch-all * route');
-	}
-
 	const routeActions = {
-		set({ actions, noRedraw }, path) {
+		set({ actions, noRedraw }, _, path) {
 			window.history.pushState(null, '', path);
 			actions.resolveRoute();
 			return noRedraw;
 		},
-		silentResolveRoute({ state, noRedraw }, match) {
-			const matchedRoute = match || getMatch(routes, window.location.pathname);
-			state.route = matchedRoute.route;
+		resolveRoute({ state, noRedraw }) {
+			const match = getMatch(routes, window.location.pathname);
+			state.route = match.route;
 			state.path = window.location.pathname;
 			state.hash = window.location.hash;
 			state.search = window.location.search;
-			state.params = matchedRoute.params;
-			return noRedraw;
-		},
-		resolveRoute({ state, noRedraw, actions }) {
-			const match = getMatch(routes, window.location.pathname);
-			actions.silentResolveRoute(match);
+			state.params = match.params;
 			routes[match.route](state);
 			return noRedraw;
 		}
@@ -75,10 +86,6 @@ export default function router(routes) {
 	};
 
 	const actions = blixt.actions(routeActions).bindTo(state);
-
-	actions.resolveRoute();
-	window.onpopstate = actions.resolveRoute;
-	window.onhashchange = actions.silentResolveRoute;
 
 	const routerModule = {
 		state,

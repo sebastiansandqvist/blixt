@@ -1,0 +1,39 @@
+{
+  "name": "blixt",
+  "version": "0.0.0",
+  "description": "A clientside web application framework",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "build": "rollup -c build/rollup.config.js",
+    "dev": "rollup -c build/rollup.config.js --watch",
+    "test": "rollup -c test/blixt-test/rollup.config.js && node test/test-server.js",
+    "test:router": "rollup -c test/router-test/rollup.config.js && node test/test-server.js router",
+    "watch:router": "rollup -c test/router-test/rollup.config.js --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sebastiansandqvist/blixt.git"
+  },
+  "author": "sebastian sandqvist",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sebastiansandqvist/blixt/issues"
+  },
+  "homepage": "https://github.com/sebastiansandqvist/blixt#readme",
+  "devDependencies": {
+    "@seabass/eslint-config": "1.8.4",
+    "deep-equal": "1.0.1",
+    "rollup": "0.41.5",
+    "rollup-plugin-buble": "0.15.0",
+    "rollup-plugin-commonjs": "8.0.2",
+    "rollup-plugin-node-resolve": "2.0.0",
+    "rollup-watch": "3.2.2",
+    "testesterone": "1.1.1"
+  },
+  "dependencies": {
+    "mithril": "1.1.1"
+  }
+}
