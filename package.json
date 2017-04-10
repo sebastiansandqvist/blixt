@@ -2,23 +2,22 @@
   "name": "blixt",
   "version": "0.0.0",
   "description": "A clientside web application framework",
+  "author": "sebastian sandqvist",
+  "license": "ISC",
   "main": "index.js",
-  "directories": {
-    "test": "test"
-  },
   "scripts": {
-    "build": "rollup -c build/rollup.config.js",
-    "dev": "rollup -c build/rollup.config.js --watch",
-    "test": "rollup -c test/blixt-test/rollup.config.js && node test/test-server.js",
-    "test:router": "rollup -c test/router-test/rollup.config.js && node test/test-server.js router",
-    "watch:router": "rollup -c test/router-test/rollup.config.js --watch"
+    "build": "npm run build:test && npm run build:router-test",
+    "build:test": "rollup -c test/blixt-test/rollup.config.js",
+    "build:router-test": "rollup -c test/router-test/rollup.config.js",
+    "start:test": "node test/test-server.js",
+    "start:router-test": "node test/test-server.js router",
+    "watch:test": "npm run build:test -- --watch",
+    "watch:router-test": "npm run build:router-test -- --watch"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/sebastiansandqvist/blixt.git"
   },
-  "author": "sebastian sandqvist",
-  "license": "ISC",
   "bugs": {
     "url": "https://github.com/sebastiansandqvist/blixt/issues"
   },

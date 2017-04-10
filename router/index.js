@@ -44,25 +44,24 @@ export default function router(routes) {
 	}
 
 	const routeActions = {
-		set({ actions, noRedraw }, path) {
+		set({ actions }, path) {
 			window.history.pushState(null, '', path);
 			actions.resolveRoute();
-			return noRedraw;
+			return { redraw: false };
 		},
-		silentResolveRoute({ state, noRedraw }, match) {
-			const matchedRoute = match || getMatch(routes, window.location.pathname);
-			state.route = matchedRoute.route;
+		silentResolveRoute({ state }) {
+			const match = getMatch(routes, window.location.pathname);
+			state.route = match.route;
 			state.path = window.location.pathname;
 			state.hash = window.location.hash;
 			state.search = window.location.search;
-			state.params = matchedRoute.params;
-			return noRedraw;
+			state.params = match.params;
+			return { redraw: false, match };
 		},
-		resolveRoute({ state, noRedraw, actions }) {
-			const match = getMatch(routes, window.location.pathname);
-			actions.silentResolveRoute(match);
+		resolveRoute({ state, actions }) {
+			const { match } = actions.silentResolveRoute();
 			routes[match.route](state);
-			return noRedraw;
+			return { redraw: false };
 		}
 	};
 

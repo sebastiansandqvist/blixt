@@ -39,7 +39,7 @@ const Component = {
 	}
 };
 
-blixt({
+const app = blixt({
 	modules: {
 		router: router({
 			'/': TestRoute,
@@ -55,6 +55,8 @@ blixt({
 	},
 	root: appRoot
 });
+
+window.app = app;
 
 test('blixt router', function(it) {
 
@@ -83,7 +85,7 @@ test('blixt router', function(it) {
 		it('changes route to non-matched route', function(expect) {
 			const catchAllCount = CatchAll.callCount;
 			expect(window.location.pathname).to.equal('/');
-			blixt.signal('router', 'set', '/some-route');
+			app.router.set('/some-route');
 			expect(window.location.pathname).to.equal('/some-route');
 			expect(blixt.getState('router', 'route')).to.equal('*');
 			expect(blixt.getState('router', 'path')).to.equal('/some-route');
@@ -93,8 +95,7 @@ test('blixt router', function(it) {
 
 		it('changes route to matched route', function(expect) {
 			const callCount = TestRoute.callCount;
-			blixt.signal('router', 'set', '/foo');
-			// what if: blixt.router('set', '/foo');
+			app.router.set('/foo');
 			expect(window.location.pathname).to.equal('/foo');
 			expect(blixt.getState('router', 'route')).to.equal('/foo');
 			expect(blixt.getState('router', 'path')).to.equal('/foo');
@@ -102,7 +103,7 @@ test('blixt router', function(it) {
 		});
 
 		it('changes route to matched route with hash', function(expect) {
-			blixt.signal('router', 'set', '/foo#bar');
+			app.router.set('/foo#bar');
 			expect(window.location.pathname).to.equal('/foo');
 			expect(window.location.hash).to.equal('#bar');
 			expect(blixt.getState('router', 'route')).to.equal('/foo');
@@ -116,7 +117,7 @@ test('blixt router', function(it) {
 
 		it('changes route to root route', function(expect) {
 			const rootCount = TestRoute.callCount;
-			blixt.signal('router', 'set', '/');
+			app.router.set('/');
 			expect(window.location.pathname).to.equal('/');
 			expect(blixt.getState('router', 'route')).to.equal('/');
 			expect(blixt.getState('router', 'path')).to.equal('/');
@@ -127,15 +128,37 @@ test('blixt router', function(it) {
 
 	test('on change', function() {
 
-		it('updates state on hash change', function(expect) {
+		it('updates state on hash change [note: onhashchange is async]', function(expect, done) {
 			expect(window.location.hash).to.equal('');
 			expect(blixt.getState('router', 'hash')).to.equal('');
 			window.location.hash = 'foo';
-			expect(window.location.hash).to.equal('#foo');
-			expect(blixt.getState('router', 'hash')).to.equal('#foo');
+			setTimeout(function() {
+				expect(blixt.getState('router', 'hash')).to.equal('#foo');
+				window.location.hash = '';
+				setTimeout(done, 0);
+			}, 0);
 		});
 
-		it('updates state on navigation back');
+		it('updates state on navigation back', function(expect, done) {
+			expect(blixt.getState('router', 'hash')).to.equal('');
+			window.history.pushState({}, '', '/foo/bar');
+			window.history.pushState({}, '', '/test');
+			// window.history.back();
+			setTimeout(function() {
+				expect(blixt.getState('router')).to.deep.equal({
+					route: '/foo/bar',
+					path: '/foo/bar',
+					hash: '',
+					search: '',
+					params: {}
+				});
+				window.history.forward();
+				window.history.pushState({}, '', '/');
+				done();
+			}, 0);
+
+		});
+
 		it('updates state on navigation forward');
 
 	});

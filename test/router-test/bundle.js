@@ -1207,6 +1207,10 @@ var blixt = (function() {
 			app.state[namespace] = modules[namespace].state || {};
 			app.actions[namespace] = modules[namespace].actions || {};
 		});
+
+		// return app.actions, so user can run app[namespace][action](args);
+		return app.actions;
+
 	}
 
 	var lastRenderedArgs;
@@ -1240,13 +1244,10 @@ var blixt = (function() {
 	};
 
 
-	var noRedraw = {}; // returning | resolving to a reference to this object from an action prevents a redraw from occurring after that action
-
 	function getContext(state, boundActions) {
 		return {
 			state: state,
-			actions: boundActions,
-			noRedraw: noRedraw
+			actions: boundActions
 		};
 	}
 
@@ -1254,7 +1255,8 @@ var blixt = (function() {
 	var isPromise = function (x) { return x && x.constructor && (typeof x.then === 'function'); };
 
 	function maybeRedraw(result) {
-		if (result !== noRedraw) { Blixt.redraw(); }
+		if (result && result.redraw === false) { return; }
+		Blixt.redraw();
 	}
 
 	Blixt.actions = function actions(actionsObj, fn) {
@@ -1285,14 +1287,6 @@ var blixt = (function() {
 				return boundActions;
 			}
 		};
-	};
-
-	Blixt.signal = function(namespace, actionName) {
-		var payload = [], len = arguments.length - 2;
-		while ( len-- > 0 ) payload[ len ] = arguments[ len + 2 ];
-
-		var action = app.actions[namespace][actionName];
-		return action.apply(action, payload);
 	};
 
 	Blixt.h = hyperscript_1;
@@ -1347,33 +1341,30 @@ function router(routes) {
 	var routeActions = {
 		set: function set(ref, path) {
 			var actions = ref.actions;
-			var noRedraw = ref.noRedraw;
 
 			window.history.pushState(null, '', path);
 			actions.resolveRoute();
-			return noRedraw;
+			return { redraw: false };
 		},
-		silentResolveRoute: function silentResolveRoute(ref, match) {
+		silentResolveRoute: function silentResolveRoute(ref) {
 			var state = ref.state;
-			var noRedraw = ref.noRedraw;
 
-			var matchedRoute = match || getMatch(routes, window.location.pathname);
-			state.route = matchedRoute.route;
+			var match = getMatch(routes, window.location.pathname);
+			state.route = match.route;
 			state.path = window.location.pathname;
 			state.hash = window.location.hash;
 			state.search = window.location.search;
-			state.params = matchedRoute.params;
-			return noRedraw;
+			state.params = match.params;
+			return { redraw: false, match: match };
 		},
 		resolveRoute: function resolveRoute(ref) {
 			var state = ref.state;
-			var noRedraw = ref.noRedraw;
 			var actions = ref.actions;
 
-			var match = getMatch(routes, window.location.pathname);
-			actions.silentResolveRoute(match);
+			var ref$1 = actions.silentResolveRoute();
+			var match = ref$1.match;
 			routes[match.route](state);
-			return noRedraw;
+			return { redraw: false };
 		}
 	};
 
@@ -1399,6 +1390,8 @@ function router(routes) {
 	return routerModule;
 
 }
+
+// import { h } from '../../index.js';
 
 var appRoot = document.getElementById('app');
 
@@ -1437,7 +1430,7 @@ var Component = {
 	}
 };
 
-blixt({
+var app = blixt({
 	modules: {
 		router: router({
 			'/': TestRoute,
@@ -1453,6 +1446,8 @@ blixt({
 	},
 	root: appRoot
 });
+
+window.app = app;
 
 index$1('blixt router', function(it) {
 
@@ -1481,7 +1476,7 @@ index$1('blixt router', function(it) {
 		it('changes route to non-matched route', function(expect) {
 			var catchAllCount = CatchAll.callCount;
 			expect(window.location.pathname).to.equal('/');
-			blixt.signal('router', 'set', '/some-route');
+			app.router.set('/some-route');
 			expect(window.location.pathname).to.equal('/some-route');
 			expect(blixt.getState('router', 'route')).to.equal('*');
 			expect(blixt.getState('router', 'path')).to.equal('/some-route');
@@ -1491,8 +1486,7 @@ index$1('blixt router', function(it) {
 
 		it('changes route to matched route', function(expect) {
 			var callCount = TestRoute.callCount;
-			blixt.signal('router', 'set', '/foo');
-			// what if: blixt.router('set', '/foo');
+			app.router.set('/foo');
 			expect(window.location.pathname).to.equal('/foo');
 			expect(blixt.getState('router', 'route')).to.equal('/foo');
 			expect(blixt.getState('router', 'path')).to.equal('/foo');
@@ -1500,7 +1494,7 @@ index$1('blixt router', function(it) {
 		});
 
 		it('changes route to matched route with hash', function(expect) {
-			blixt.signal('router', 'set', '/foo#bar');
+			app.router.set('/foo#bar');
 			expect(window.location.pathname).to.equal('/foo');
 			expect(window.location.hash).to.equal('#bar');
 			expect(blixt.getState('router', 'route')).to.equal('/foo');
@@ -1514,7 +1508,7 @@ index$1('blixt router', function(it) {
 
 		it('changes route to root route', function(expect) {
 			var rootCount = TestRoute.callCount;
-			blixt.signal('router', 'set', '/');
+			app.router.set('/');
 			expect(window.location.pathname).to.equal('/');
 			expect(blixt.getState('router', 'route')).to.equal('/');
 			expect(blixt.getState('router', 'path')).to.equal('/');
@@ -1525,15 +1519,37 @@ index$1('blixt router', function(it) {
 
 	index$1('on change', function() {
 
-		it('updates state on hash change', function(expect) {
+		it('updates state on hash change [note: onhashchange is async]', function(expect, done) {
 			expect(window.location.hash).to.equal('');
 			expect(blixt.getState('router', 'hash')).to.equal('');
 			window.location.hash = 'foo';
-			expect(window.location.hash).to.equal('#foo');
-			expect(blixt.getState('router', 'hash')).to.equal('#foo');
+			setTimeout(function() {
+				expect(blixt.getState('router', 'hash')).to.equal('#foo');
+				window.location.hash = '';
+				setTimeout(done, 0);
+			}, 0);
 		});
 
-		it('updates state on navigation back');
+		it('updates state on navigation back', function(expect, done) {
+			expect(blixt.getState('router', 'hash')).to.equal('');
+			window.history.pushState({}, '', '/foo/bar');
+			window.history.pushState({}, '', '/test');
+			// window.history.back();
+			setTimeout(function() {
+				expect(blixt.getState('router')).to.deep.equal({
+					route: '/foo/bar',
+					path: '/foo/bar',
+					hash: '',
+					search: '',
+					params: {}
+				});
+				window.history.forward();
+				window.history.pushState({}, '', '/');
+				done();
+			}, 0);
+
+		});
+
 		it('updates state on navigation forward');
 
 	});

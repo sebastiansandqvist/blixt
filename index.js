@@ -24,6 +24,10 @@ const blixt = (function() {
 			app.state[namespace] = modules[namespace].state || {};
 			app.actions[namespace] = modules[namespace].actions || {};
 		});
+
+		// return app.actions, so user can run app[namespace][action](args);
+		return app.actions;
+
 	}
 
 	let lastRenderedArgs;
@@ -51,13 +55,10 @@ const blixt = (function() {
 	};
 
 
-	const noRedraw = {}; // returning | resolving to a reference to this object from an action prevents a redraw from occurring after that action
-
 	function getContext(state, boundActions) {
 		return {
 			state,
-			actions: boundActions,
-			noRedraw
+			actions: boundActions
 		};
 	}
 
@@ -65,7 +66,8 @@ const blixt = (function() {
 	const isPromise = (x) => x && x.constructor && (typeof x.then === 'function');
 
 	function maybeRedraw(result) {
-		if (result !== noRedraw) { Blixt.redraw(); }
+		if (result && result.redraw === false) { return; }
+		Blixt.redraw();
 	}
 
 	Blixt.actions = function actions(actionsObj, fn = noop) {
@@ -91,11 +93,6 @@ const blixt = (function() {
 				return boundActions;
 			}
 		};
-	};
-
-	Blixt.signal = function(namespace, actionName, ...payload) {
-		const action = app.actions[namespace][actionName];
-		return action.apply(action, payload);
 	};
 
 	Blixt.h = hyperscript;

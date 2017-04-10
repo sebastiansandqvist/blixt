@@ -1207,6 +1207,10 @@ var blixt = (function() {
 			app.state[namespace] = modules[namespace].state || {};
 			app.actions[namespace] = modules[namespace].actions || {};
 		});
+
+		// return app.actions, so user can run app[namespace][action](args);
+		return app.actions;
+
 	}
 
 	var lastRenderedArgs;
@@ -1240,13 +1244,10 @@ var blixt = (function() {
 	};
 
 
-	var noRedraw = {}; // returning | resolving to a reference to this object from an action prevents a redraw from occurring after that action
-
 	function getContext(state, boundActions) {
 		return {
 			state: state,
-			actions: boundActions,
-			noRedraw: noRedraw
+			actions: boundActions
 		};
 	}
 
@@ -1254,7 +1255,8 @@ var blixt = (function() {
 	var isPromise = function (x) { return x && x.constructor && (typeof x.then === 'function'); };
 
 	function maybeRedraw(result) {
-		if (result !== noRedraw) { Blixt.redraw(); }
+		if (result && result.redraw === false) { return; }
+		Blixt.redraw();
 	}
 
 	Blixt.actions = function actions(actionsObj, fn) {
@@ -1285,14 +1287,6 @@ var blixt = (function() {
 				return boundActions;
 			}
 		};
-	};
-
-	Blixt.signal = function(namespace, actionName) {
-		var payload = [], len = arguments.length - 2;
-		while ( len-- > 0 ) payload[ len ] = arguments[ len + 2 ];
-
-		var action = app.actions[namespace][actionName];
-		return action.apply(action, payload);
 	};
 
 	Blixt.h = hyperscript_1;
@@ -1351,7 +1345,6 @@ var counterActions = blixt.actions({
 	},
 	incBy: function incBy(ref, amount) {
 		var state = ref.state;
-		var noRedraw = ref.noRedraw;
 
 		state.number += amount;
 	},
@@ -1362,10 +1355,9 @@ var counterActions = blixt.actions({
 	},
 	incWithoutRedraw: function incWithoutRedraw(ref) {
 		var state = ref.state;
-		var noRedraw = ref.noRedraw;
 
 		state.number++;
-		return noRedraw;
+		return { redraw: false, doubleN: state.number * 2 };
 	},
 	setTo: function setTo(ref, number) {
 		var state = ref.state;
@@ -1384,12 +1376,11 @@ var counterActions = blixt.actions({
 	},
 	asyncInc2NoRedraw: function asyncInc2NoRedraw(ref) {
 		var state = ref.state;
-		var noRedraw = ref.noRedraw;
 
 		return new Promise(function(resolve) {
 			setTimeout(function() {
 				state.number += 2;
-				resolve(noRedraw);
+				resolve({ redraw: false });
 			}, 500);
 		});
 	}
@@ -1404,7 +1395,7 @@ var counterModule = (function() {
 
 var appRoot = document.getElementById('app');
 
-blixt({
+var app = blixt({
 	modules: {
 		stateModule: stateModule,
 		unboundActionModule: unboundActionModule,
@@ -1709,20 +1700,20 @@ index$1('blixt', function(it) {
 
 	});
 
-	index$1('signal', function() {
+	index$1('emit app actions', function() {
 
 		it('triggers bound actions', function(expect) {
 			expect(blixt.getState('counter').number).to.equal(0);
-			blixt.signal('counter', 'increment');
+			app.counter.increment();
 			expect(blixt.getState('counter').number).to.equal(1);
-			blixt.signal('counter', 'decrement');
+			app.counter.decrement();
 			expect(blixt.getState('counter').number).to.equal(0);
-			blixt.signal('counter', 'incBy', 10);
+			app.counter.incBy(10);
 			expect(blixt.getState('counter').number).to.equal(10);
 		});
 
 		it('triggers unbound actions', function(expect) {
-			var x = blixt.signal('unboundActionModule', 'foo', 'hello', 'world');
+			var x = app.unboundActionModule.foo('hello', 'world');
 			expect(x.arg1).to.equal('hello');
 			expect(x.arg2).to.equal('world');
 			expect(x.bar).to.equal('baz');
@@ -1731,7 +1722,7 @@ index$1('blixt', function(it) {
 		});
 
 		it('updates state synchronously', function(expect) {
-			blixt.signal('counter', 'setTo', 555);
+			app.counter.setTo(555);
 			var state = blixt.getState('counter');
 			expect(state).to.deep.equal({ number: 555 });
 		});
@@ -1741,7 +1732,7 @@ index$1('blixt', function(it) {
 			expect(state).to.deep.equal({ number: 555 }); // shouldn't have changed from previous test
 			var initialRenderCount = renderCount;
 			blixt.render(CountComponent, state);
-			blixt.signal('counter', 'incBy', 222);
+			app.counter.incBy(222);
 			expect(renderCount).to.equal(initialRenderCount + 1);
 			expect(appRoot.innerHTML).to.equal('<h2>count: 555</h2>');
 			setTimeout(function() {

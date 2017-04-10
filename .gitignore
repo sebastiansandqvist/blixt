@@ -3,3 +3,4 @@
 npm-debug.log
 etc/
 node_modules/
+bundle.js

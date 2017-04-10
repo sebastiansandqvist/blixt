@@ -47,17 +47,15 @@ const counterActions = blixt.actions({
 	increment({ state }) {
 		state.number++;
 	},
-	incBy({ state, noRedraw }, amount) {
+	incBy({ state }, amount) {
 		state.number += amount;
 	},
 	decrement({ actions }) {
 		actions.incBy(-1);
 	},
-	incWithoutRedraw({ state, noRedraw }) {
+	incWithoutRedraw({ state }) {
 		state.number++;
-		return noRedraw;
-		// what if:
-		// return { redraw: false } // no reference to redrawObject, allows returning other things on this object
+		return { redraw: false, doubleN: state.number * 2 };
 	},
 	setTo({ state }, number) {
 		state.number = number;
@@ -70,11 +68,11 @@ const counterActions = blixt.actions({
 			}, 500);
 		});
 	},
-	asyncInc2NoRedraw({ state, noRedraw }) {
+	asyncInc2NoRedraw({ state }) {
 		return new Promise(function(resolve) {
 			setTimeout(function() {
 				state.number += 2;
-				resolve(noRedraw);
+				resolve({ redraw: false });
 			}, 500);
 		});
 	}
@@ -89,7 +87,7 @@ const counterModule = (function() {
 
 const appRoot = document.getElementById('app');
 
-blixt({
+const app = blixt({
 	modules: {
 		stateModule,
 		unboundActionModule,
@@ -384,22 +382,20 @@ test('blixt', function(it) {
 
 	});
 
-	test('signal', function() {
+	test('emit app actions', function() {
 
 		it('triggers bound actions', function(expect) {
 			expect(blixt.getState('counter').number).to.equal(0);
-			blixt.signal('counter', 'increment');
+			app.counter.increment();
 			expect(blixt.getState('counter').number).to.equal(1);
-			blixt.signal('counter', 'decrement');
+			app.counter.decrement();
 			expect(blixt.getState('counter').number).to.equal(0);
-			blixt.signal('counter', 'incBy', 10);
+			app.counter.incBy(10);
 			expect(blixt.getState('counter').number).to.equal(10);
-			// what if: blixt.counter('incBy', 10);
-			// what if: blixt.counter.incBy(10);
 		});
 
 		it('triggers unbound actions', function(expect) {
-			const x = blixt.signal('unboundActionModule', 'foo', 'hello', 'world');
+			const x = app.unboundActionModule.foo('hello', 'world');
 			expect(x.arg1).to.equal('hello');
 			expect(x.arg2).to.equal('world');
 			expect(x.bar).to.equal('baz');
@@ -408,7 +404,7 @@ test('blixt', function(it) {
 		});
 
 		it('updates state synchronously', function(expect) {
-			blixt.signal('counter', 'setTo', 555);
+			app.counter.setTo(555);
 			const state = blixt.getState('counter');
 			expect(state).to.deep.equal({ number: 555 });
 		});
@@ -418,7 +414,7 @@ test('blixt', function(it) {
 			expect(state).to.deep.equal({ number: 555 }); // shouldn't have changed from previous test
 			const initialRenderCount = renderCount;
 			blixt.render(CountComponent, state);
-			blixt.signal('counter', 'incBy', 222);
+			app.counter.incBy(222);
 			expect(renderCount).to.equal(initialRenderCount + 1);
 			expect(appRoot.innerHTML).to.equal('<h2>count: 555</h2>');
 			setTimeout(function() {
