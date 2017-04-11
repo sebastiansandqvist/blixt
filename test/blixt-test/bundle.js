@@ -457,7 +457,7 @@ Vnode.normalizeChildren = function normalizeChildren(children) {
 
 var vnode = Vnode;
 
-var render$1 = function($window) {
+var render$2 = function($window) {
 	var $doc = $window.document;
 	var $emptyFragment = $doc.createDocumentFragment();
 
@@ -1069,7 +1069,7 @@ var render$1 = function($window) {
 	return {render: render, setEventCallback: setEventCallback}
 };
 
-var render = render$1(window);
+var render$1 = render$2(window);
 
 var selectorParser = /(?:(^|#|\.)([^#\.\[\]]+))|(\[(.+?)(?:\s*=\s*("|'|)((?:\\["'\]]|.)*?)\5)?\])/g;
 var selectorCache = {};
@@ -1184,116 +1184,116 @@ hyperscript_1$1.fragment = fragment;
 
 var hyperscript_1 = hyperscript_1$1;
 
-var blixt = (function() {
+var isInitialized = false;
 
-	var isInitialized = false;
+var app$1 = {
+	state: {},
+	actions: {},
+	root: null
+};
 
-	var app = {
-		state: {},
-		actions: {},
-		root: null
+function blixt(opts) {
+
+	if (isInitialized) {
+		throw new Error('Blixt has already been initialized');
+	}
+
+	isInitialized = true;
+	app$1.root = opts.root;
+	var modules = opts.modules || {};
+	Object.keys(modules).forEach(function(namespace) {
+		app$1.state[namespace] = modules[namespace].state || {};
+		app$1.actions[namespace] = modules[namespace].actions || {};
+	});
+
+	// return app.actions, so user can run app[namespace][action](args);
+	return app$1.actions;
+
+}
+
+var lastRenderedArgs;
+function render() {
+	var args = [], len = arguments.length;
+	while ( len-- ) args[ len ] = arguments[ len ];
+
+	lastRenderedArgs = args;
+	render$1.render(app$1.root, hyperscript_1.apply(hyperscript_1, args));
+}
+
+var redrawScheduled = false;
+function redraw() {
+	if (redrawScheduled) { return; }
+	redrawScheduled = true;
+	requestAnimationFrame(function() {
+		redrawScheduled = false;
+		blixt.render.apply(blixt.render, lastRenderedArgs);
+	});
+}
+
+function getState() {
+	var path = [], len = arguments.length;
+	while ( len-- ) path[ len ] = arguments[ len ];
+
+	var state = app$1.state;
+	path.forEach(function(segment) {
+		state = state[segment];
+	});
+	return state;
+}
+
+
+function getContext(state, boundActions) {
+	return {
+		state: state,
+		actions: boundActions
 	};
+}
 
-	function Blixt(opts) {
+var noop = function () {};
+var isPromise = function (x) { return x && x.constructor && (typeof x.then === 'function'); };
 
-		if (isInitialized) {
-			throw new Error('Blixt has already been initialized');
+function maybeRedraw(result) {
+	if (result && result.redraw === false) { return; }
+	blixt.redraw();
+}
+
+function actions(actionsObj, fn) {
+	if ( fn === void 0 ) fn = noop;
+
+	return {
+		bindTo: function bindTo(state) {
+			fn(state);
+			var boundActions = {};
+			Object.keys(actionsObj).forEach(function(key) {
+				var action = actionsObj[key];
+				boundActions[key] = function() {
+					var args = [], len = arguments.length;
+					while ( len-- ) args[ len ] = arguments[ len ];
+
+					var result = action.apply(action, [getContext(state, boundActions)].concat(args));
+					if (isPromise(result)) {
+						return result.then(function(value) {
+							fn(state);
+							maybeRedraw(value);
+						});
+					}
+					fn(state);
+					maybeRedraw(result);
+					return result;
+				};
+			});
+			return boundActions;
 		}
-
-		isInitialized = true;
-		app.root = opts.root;
-		var modules = opts.modules || {};
-		Object.keys(modules).forEach(function(namespace) {
-			app.state[namespace] = modules[namespace].state || {};
-			app.actions[namespace] = modules[namespace].actions || {};
-		});
-
-		// return app.actions, so user can run app[namespace][action](args);
-		return app.actions;
-
-	}
-
-	var lastRenderedArgs;
-	Blixt.render = function render$$1() {
-		var args = [], len = arguments.length;
-		while ( len-- ) args[ len ] = arguments[ len ];
-
-		lastRenderedArgs = args;
-		render.render(app.root, hyperscript_1.apply(hyperscript_1, args));
 	};
+}
 
-	var redrawScheduled = false;
-	Blixt.redraw = function redraw() {
-		if (redrawScheduled) { return; }
-		redrawScheduled = true;
-		requestAnimationFrame(function() {
-			redrawScheduled = false;
-			Blixt.render.apply(Blixt.render, lastRenderedArgs);
-		});
-	};
+blixt.getState = getState;
+blixt.render = render;
+blixt.redraw = redraw;
+blixt.actions = actions;
+blixt.h = hyperscript_1;
 
-	Blixt.getState = function getState() {
-		var path = [], len = arguments.length;
-		while ( len-- ) path[ len ] = arguments[ len ];
-
-		var state = app.state;
-		path.forEach(function(segment) {
-			state = state[segment];
-		});
-		return state;
-	};
-
-
-	function getContext(state, boundActions) {
-		return {
-			state: state,
-			actions: boundActions
-		};
-	}
-
-	var noop = function () {};
-	var isPromise = function (x) { return x && x.constructor && (typeof x.then === 'function'); };
-
-	function maybeRedraw(result) {
-		if (result && result.redraw === false) { return; }
-		Blixt.redraw();
-	}
-
-	Blixt.actions = function actions(actionsObj, fn) {
-		if ( fn === void 0 ) fn = noop;
-
-		return {
-			bindTo: function bindTo(state) {
-				fn(state);
-				var boundActions = {};
-				Object.keys(actionsObj).forEach(function(key) {
-					var action = actionsObj[key];
-					boundActions[key] = function() {
-						var args = [], len = arguments.length;
-						while ( len-- ) args[ len ] = arguments[ len ];
-
-						var result = action.apply(action, [getContext(state, boundActions)].concat(args));
-						if (isPromise(result)) {
-							return result.then(function(value) {
-								fn(state);
-								maybeRedraw(value);
-							});
-						}
-						fn(state);
-						maybeRedraw(result);
-						return result;
-					};
-				});
-				return boundActions;
-			}
-		};
-	};
-
-	Blixt.h = hyperscript_1;
-
-	return Blixt;
-
-})();
+var h = hyperscript_1;
 
 // ------------------- mocks/stubs --------------------
 
@@ -1349,9 +1349,9 @@ var counterActions = blixt.actions({
 		state.number += amount;
 	},
 	decrement: function decrement(ref) {
-		var actions = ref.actions;
+		var actions$$1 = ref.actions;
 
-		actions.incBy(-1);
+		actions$$1.incBy(-1);
 	},
 	incWithoutRedraw: function incWithoutRedraw(ref) {
 		var state = ref.state;
@@ -1388,8 +1388,8 @@ var counterActions = blixt.actions({
 
 var counterModule = (function() {
 	var state = { number: 0 };
-	var actions = counterActions.bindTo(state);
-	return { state: state, actions: actions };
+	var actions$$1 = counterActions.bindTo(state);
+	return { state: state, actions: actions$$1 };
 })();
 
 
@@ -1502,19 +1502,19 @@ index$1('blixt', function(it) {
 
 		it('works if bound to state', function(expect) {
 			var state = { number: 0 };
-			var actions = counterActions.bindTo(state);
-			actions.increment();
+			var actions$$1 = counterActions.bindTo(state);
+			actions$$1.increment();
 			expect(state.number).to.equal(1);
 		});
 
 		it('redraws when action is complete', function(expect, done) {
 			var state = { number: 1000 };
-			var actions = counterActions.bindTo(state);
+			var actions$$1 = counterActions.bindTo(state);
 			var initialRenderCount = renderCount;
 			blixt.render(CountComponent, state);
 			expect(renderCount).to.equal(initialRenderCount + 1);
 			expect(appRoot.innerHTML).to.equal('<h2>count: 1000</h2>');
-			actions.decrement();
+			actions$$1.decrement();
 			setTimeout(function() {
 				expect(renderCount).to.equal(initialRenderCount + 2);
 				expect(appRoot.innerHTML).to.equal('<h2>count: 999</h2>');
@@ -1524,12 +1524,12 @@ index$1('blixt', function(it) {
 
 		it('does not redraw if action returns `noRedraw`', function(expect, done) {
 			var state = { number: 1000 };
-			var actions = counterActions.bindTo(state);
+			var actions$$1 = counterActions.bindTo(state);
 			var initialRenderCount = renderCount;
 			blixt.render(CountComponent, state);
 			expect(renderCount).to.equal(initialRenderCount + 1);
 			expect(appRoot.innerHTML).to.equal('<h2>count: 1000</h2>');
-			actions.incWithoutRedraw();
+			actions$$1.incWithoutRedraw();
 			setTimeout(function() {
 				expect(renderCount).to.equal(initialRenderCount + 1);
 				expect(appRoot.innerHTML).to.equal('<h2>count: 1000</h2>');
@@ -1562,12 +1562,12 @@ index$1('blixt', function(it) {
 		it('runs function (typecheck) after an action runs', function(expect) {
 			var T = typeCheck({ foo: 'number', bar: 'number' });
 			var model = { foo: 123, bar: 456 };
-			var actions = {
+			var actions$$1 = {
 				incFoo: function incFoo(ref) {
 				var state = ref.state;
  state.foo = state.foo + 1; }
 			};
-			var boundActions = blixt.actions(actions, T).bindTo(model);
+			var boundActions = blixt.actions(actions$$1, T).bindTo(model);
 			expect(T.hasError).to.equal(false);
 			expect(T.callCount).to.equal(1);
 
@@ -1589,9 +1589,9 @@ index$1('blixt', function(it) {
 
 		it('runs async promise action', function(expect, done) {
 			var state = { number: 40 };
-			var actions = counterActions.bindTo(state);
+			var actions$$1 = counterActions.bindTo(state);
 			var initialRenderCount = renderCount;
-			actions.asyncInc2();
+			actions$$1.asyncInc2();
 			expect(state.number).to.equal(40);
 			expect(renderCount).to.equal(initialRenderCount);
 			setTimeout(function() {
@@ -1607,12 +1607,12 @@ index$1('blixt', function(it) {
 
 		it('runs async promise action that resolves to `noRedraw`', function(expect, done) {
 			var state = { number: 2000 };
-			var actions = counterActions.bindTo(state);
+			var actions$$1 = counterActions.bindTo(state);
 			var initialRenderCount = renderCount;
 			blixt.render(CountComponent, state);
 			expect(renderCount).to.equal(initialRenderCount + 1);
 			expect(appRoot.innerHTML).to.equal('<h2>count: 2000</h2>');
-			actions.asyncInc2NoRedraw();
+			actions$$1.asyncInc2NoRedraw();
 			setTimeout(function() {
 				expect(renderCount).to.equal(initialRenderCount + 1);
 				expect(appRoot.innerHTML).to.equal('<h2>count: 2000</h2>');
@@ -1629,7 +1629,7 @@ index$1('blixt', function(it) {
 		it('runs function (typecheck) after async action promise resolves [pass]', function(expect, done) {
 			var T = typeCheck({ foo: 'number', bar: 'number' });
 			var model = { foo: 123, bar: 456 };
-			var actions = {
+			var actions$$1 = {
 				incFooAsync: function incFooAsync(ref) {
 					var state = ref.state;
 
@@ -1642,7 +1642,7 @@ index$1('blixt', function(it) {
 				}
 			};
 
-			var boundActions = blixt.actions(actions, T).bindTo(model);
+			var boundActions = blixt.actions(actions$$1, T).bindTo(model);
 			expect(T.hasError).to.equal(false);
 			expect(T.callCount).to.equal(1);
 
@@ -1664,7 +1664,7 @@ index$1('blixt', function(it) {
 		it('runs function (typecheck) after async action promise resolves [fail]', function(expect, done) {
 			var T = typeCheck({ foo: 'number', bar: 'number' });
 			var model = { foo: 123, bar: 456 };
-			var actions = {
+			var actions$$1 = {
 				incFooAsync: function incFooAsync(ref) {
 					var state = ref.state;
 
@@ -1677,7 +1677,7 @@ index$1('blixt', function(it) {
 				}
 			};
 
-			var boundActions = blixt.actions(actions, T).bindTo(model);
+			var boundActions = blixt.actions(actions$$1, T).bindTo(model);
 			model.foo = 'foo:';
 			expect(T.hasError).to.equal(false);
 			expect(T.callCount).to.equal(1);
@@ -1740,6 +1740,31 @@ index$1('blixt', function(it) {
 				expect(appRoot.innerHTML).to.equal('<h2>count: 777</h2>');
 				done();
 			}, 50);
+		});
+
+	});
+
+	index$1('works with exported functions', function() {
+
+		it('getState', function(expect) {
+			expect(getState('counter')).to.deep.equal({ number: 777 });
+			expect(getState).to.equal(blixt.getState);
+		});
+
+		it('actions', function(expect) {
+			expect(actions).to.equal(blixt.actions);
+		});
+
+		it('render', function(expect) {
+			expect(render).to.equal(oldRender);
+		});
+
+		it('redraw', function(expect) {
+			expect(redraw).to.equal(blixt.redraw);
+		});
+
+		it('hyperscript', function(expect) {
+			expect(h).to.equal(blixt.h);
 		});
 
 	});

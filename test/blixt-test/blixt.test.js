@@ -1,6 +1,14 @@
 import test from 'testesterone';
 import blixt from '../../index.js';
 
+import {
+	render,
+	redraw,
+	getState,
+	actions as importedActions,
+	h
+} from '../../index.js';
+
 // ------------------- mocks/stubs --------------------
 
 let renderCount = 0;
@@ -422,6 +430,31 @@ test('blixt', function(it) {
 				expect(appRoot.innerHTML).to.equal('<h2>count: 777</h2>');
 				done();
 			}, 50);
+		});
+
+	});
+
+	test('works with exported functions', function() {
+
+		it('getState', function(expect) {
+			expect(getState('counter')).to.deep.equal({ number: 777 });
+			expect(getState).to.equal(blixt.getState);
+		});
+
+		it('actions', function(expect) {
+			expect(importedActions).to.equal(blixt.actions);
+		});
+
+		it('render', function(expect) {
+			expect(render).to.equal(oldRender);
+		});
+
+		it('redraw', function(expect) {
+			expect(redraw).to.equal(blixt.redraw);
+		});
+
+		it('hyperscript', function(expect) {
+			expect(h).to.equal(blixt.h);
 		});
 
 	});
