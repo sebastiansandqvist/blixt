@@ -13,7 +13,7 @@ const app = {
 function blixt(opts) {
 
 	if (isInitialized) {
-		throw new Error('Blixt has already been initialized');
+		throw Error('Blixt has already been initialized');
 	}
 
 	isInitialized = true;

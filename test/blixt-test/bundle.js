@@ -1195,7 +1195,7 @@ var app$1 = {
 function blixt(opts) {
 
 	if (isInitialized) {
-		throw new Error('Blixt has already been initialized');
+		throw Error('Blixt has already been initialized');
 	}
 
 	isInitialized = true;
@@ -1326,6 +1326,11 @@ var stateModule = (function() {
 	return { state: state };
 })();
 
+var complexStateModule = (function() {
+	var state = { foo: 'bar', baz: [ { a: [1, 2, 3] } ] };
+	return { state: state };
+})();
+
 
 var statelessActions = blixt.actions({
 	foo: function foo(context, arg1, arg2) {
@@ -1335,6 +1340,20 @@ var statelessActions = blixt.actions({
 
 var unboundActionModule = (function() {
 	return { actions: statelessActions };
+})();
+
+var arrayStateModule = (function() {
+	var state = [1, 2, 3];
+	var actions$$1 = blixt.actions({
+		append: function append(context, number) {
+			context.state.push(number);
+		},
+		remove: function remove(context, number) {
+			var index = context.state.indexOf(number);
+			context.state.splice(index, 1);
+		}
+	}).bindTo(state);
+	return { state: state, actions: actions$$1 };
 })();
 
 var counterActions = blixt.actions({
@@ -1398,8 +1417,10 @@ var appRoot = document.getElementById('app');
 var app = blixt({
 	modules: {
 		stateModule: stateModule,
+		complexStateModule: complexStateModule,
 		unboundActionModule: unboundActionModule,
-		counter: counterModule
+		counter: counterModule,
+		arrayModule: arrayStateModule
 	},
 	root: appRoot
 });
@@ -1487,6 +1508,23 @@ index$1('blixt', function(it) {
 			expect(blixt.getState('unboundActionModule')).to.deep.equal({});
 		});
 
+		it('initializes array modules', function(expect) {
+			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3]);
+		});
+
+		it('initializes simple modules', function(expect) {
+			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3]);
+		});
+
+	});
+
+	index$1('getState', function() {
+		it('traverses path to state', function(expect) {
+			expect(blixt.getState('complexStateModule', 'baz', '0', 'a')).to.deep.equal([1, 2, 3]);
+		});
+		it('traverses array state', function(expect) {
+			expect(blixt.getState('arrayModule', 2)).to.equal(3);
+		});
 	});
 
 	index$1('actions', function() {
@@ -1740,6 +1778,17 @@ index$1('blixt', function(it) {
 				expect(appRoot.innerHTML).to.equal('<h2>count: 777</h2>');
 				done();
 			}, 50);
+		});
+
+		it('works with array state', function(expect) {
+			var state = blixt.getState('arrayModule');
+			expect(state).to.deep.equal([1, 2, 3]);
+			app.arrayModule.append(4);
+			app.arrayModule.append(100);
+			app.arrayModule.append(10);
+			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3, 4, 100, 10]);
+			app.arrayModule.remove(100);
+			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3, 4, 10]);
 		});
 
 	});

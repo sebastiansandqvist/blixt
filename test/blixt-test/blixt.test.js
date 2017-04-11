@@ -40,6 +40,11 @@ const stateModule = (function() {
 	return { state };
 })();
 
+const complexStateModule = (function() {
+	const state = { foo: 'bar', baz: [ { a: [1, 2, 3] } ] };
+	return { state };
+})();
+
 
 const statelessActions = blixt.actions({
 	foo(context, arg1, arg2) {
@@ -49,6 +54,20 @@ const statelessActions = blixt.actions({
 
 const unboundActionModule = (function() {
 	return { actions: statelessActions };
+})();
+
+const arrayStateModule = (function() {
+	const state = [1, 2, 3];
+	const actions = blixt.actions({
+		append(context, number) {
+			context.state.push(number);
+		},
+		remove(context, number) {
+			const index = context.state.indexOf(number);
+			context.state.splice(index, 1);
+		}
+	}).bindTo(state);
+	return { state, actions };
 })();
 
 const counterActions = blixt.actions({
@@ -98,8 +117,10 @@ const appRoot = document.getElementById('app');
 const app = blixt({
 	modules: {
 		stateModule,
+		complexStateModule,
 		unboundActionModule,
-		counter: counterModule
+		counter: counterModule,
+		arrayModule: arrayStateModule
 	},
 	root: appRoot
 });
@@ -183,6 +204,23 @@ test('blixt', function(it) {
 			expect(blixt.getState('unboundActionModule')).to.deep.equal({});
 		});
 
+		it('initializes array modules', function(expect) {
+			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3]);
+		});
+
+		it('initializes simple modules', function(expect) {
+			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3]);
+		});
+
+	});
+
+	test('getState', function() {
+		it('traverses path to state', function(expect) {
+			expect(blixt.getState('complexStateModule', 'baz', '0', 'a')).to.deep.equal([1, 2, 3]);
+		});
+		it('traverses array state', function(expect) {
+			expect(blixt.getState('arrayModule', 2)).to.equal(3);
+		});
 	});
 
 	test('actions', function() {
@@ -430,6 +468,17 @@ test('blixt', function(it) {
 				expect(appRoot.innerHTML).to.equal('<h2>count: 777</h2>');
 				done();
 			}, 50);
+		});
+
+		it('works with array state', function(expect) {
+			const state = blixt.getState('arrayModule');
+			expect(state).to.deep.equal([1, 2, 3]);
+			app.arrayModule.append(4);
+			app.arrayModule.append(100);
+			app.arrayModule.append(10);
+			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3, 4, 100, 10]);
+			app.arrayModule.remove(100);
+			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3, 4, 10]);
 		});
 
 	});
