@@ -1295,8 +1295,6 @@ blixt.h = hyperscript_1;
 
 var h = hyperscript_1;
 
-// ------------------- mocks/stubs --------------------
-
 var renderCount = 0;
 var oldRender = blixt.render;
 blixt.render = function(component, attrs) {

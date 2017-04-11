@@ -1,5 +1,6 @@
 import test from 'testesterone';
 import blixt from '../../index.js';
+import stream from 'mithril/stream';
 
 import {
 	render,
@@ -111,6 +112,18 @@ const counterModule = (function() {
 	return { state, actions };
 })();
 
+const streamModule = (function() {
+	const count = stream(0);
+	const double = count.map((x) => x * 2);
+	const state = { count, double };
+	const actions = blixt.actions({
+		setCount(context, x) {
+			context.state.count(x);
+		}
+	}).bindTo(state);
+	return { state, actions };
+})();
+
 
 const appRoot = document.getElementById('app');
 
@@ -120,7 +133,8 @@ const app = blixt({
 		complexStateModule,
 		unboundActionModule,
 		counter: counterModule,
-		arrayModule: arrayStateModule
+		arrayModule: arrayStateModule,
+		stream: streamModule
 	},
 	root: appRoot
 });
@@ -205,10 +219,6 @@ test('blixt', function(it) {
 		});
 
 		it('initializes array modules', function(expect) {
-			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3]);
-		});
-
-		it('initializes simple modules', function(expect) {
 			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3]);
 		});
 
@@ -479,6 +489,16 @@ test('blixt', function(it) {
 			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3, 4, 100, 10]);
 			app.arrayModule.remove(100);
 			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3, 4, 10]);
+		});
+
+		// not sure if this will be useful
+		it('works with stream state', function(expect) {
+			const state = blixt.getState('stream');
+			expect(state.count()).to.equal(0);
+			expect(state.double()).to.equal(0);
+			app.stream.setCount(5);
+			expect(state.count()).to.equal(5);
+			expect(state.double()).to.equal(10);
 		});
 
 	});
