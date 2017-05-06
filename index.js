@@ -1,13 +1,10 @@
-import m from 'mithril/render';
-import hyperscript from 'mithril/hyperscript';
-
-
 let isInitialized = false;
+const noop = () => {};
 
 const app = {
 	state: {},
 	actions: {},
-	root: null
+	onUpdate: noop
 };
 
 function blixt(opts) {
@@ -17,7 +14,7 @@ function blixt(opts) {
 	}
 
 	isInitialized = true;
-	app.root = opts.root;
+	app.onUpdate = opts.onUpdate || app.onUpdate;
 	const modules = opts.modules || {};
 	Object.keys(modules).forEach(function(namespace) {
 		app.state[namespace] = modules[namespace].state || {};
@@ -29,28 +26,13 @@ function blixt(opts) {
 
 }
 
-let lastRenderedArgs;
-export function render(...args) {
-	lastRenderedArgs = args;
-	m.render(app.root, hyperscript.apply(hyperscript, args));
-}
 
-let redrawScheduled = false;
-export function redraw() {
-	if (redrawScheduled) { return; }
-	redrawScheduled = true;
-	requestAnimationFrame(function() {
-		redrawScheduled = false;
-		blixt.render.apply(blixt.render, lastRenderedArgs);
-	});
+export function forceUpdate() {
+	app.onUpdate(app.state);
 }
 
 export function getState(...path) {
-	let state = app.state;
-	path.forEach(function(segment) {
-		state = state[segment];
-	});
-	return state;
+	return path.reduce((state, segment) => state[segment], app.state);
 }
 
 
@@ -61,12 +43,11 @@ function getContext(state, boundActions) {
 	};
 }
 
-const noop = () => {};
 const isPromise = (x) => x && x.constructor && (typeof x.then === 'function');
 
-function maybeRedraw(result) {
-	if (result && result.redraw === false) { return; }
-	blixt.redraw();
+function maybeUpdate(result) {
+	if (result && result.update === false) { return; }
+	forceUpdate();
 }
 
 export function actions(actionsObj, fn = noop) {
@@ -81,11 +62,11 @@ export function actions(actionsObj, fn = noop) {
 					if (isPromise(result)) {
 						return result.then(function(value) {
 							fn(state);
-							maybeRedraw(value);
+							maybeUpdate(value);
 						});
 					}
 					fn(state);
-					maybeRedraw(result);
+					maybeUpdate(result);
 					return result;
 				};
 			});
@@ -95,11 +76,7 @@ export function actions(actionsObj, fn = noop) {
 }
 
 blixt.getState = getState;
-blixt.render = render;
-blixt.redraw = redraw;
+blixt.forceUpdate = forceUpdate;
 blixt.actions = actions;
-blixt.h = hyperscript;
-
-export const h = hyperscript;
 
 export default blixt;

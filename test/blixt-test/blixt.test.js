@@ -1,531 +1,222 @@
 import test from 'testesterone';
 import blixt from '../../index.js';
-import stream from 'mithril/stream';
+import batch from '../../helpers/batch.js';
+import m from 'mithril';
 
 import {
-	render,
-	redraw,
+	forceUpdate,
 	getState,
-	actions as importedActions,
-	h
+	actions as importedActions
 } from '../../index.js';
 
-// ------------------- mocks/stubs --------------------
-
-let renderCount = 0;
-const oldRender = blixt.render;
-blixt.render = function(component, attrs) {
-	renderCount++;
-	oldRender(component, attrs);
-};
-
-// ------------------- global test state --------------------
-
-// basic typechecker to test actions({}, typechecker);
-function typeCheck(schema) {
-	const typeChecker = function(state) {
-		typeChecker.callCount++;
-		Object.keys(schema).forEach(function(key) {
-			if (typeof state[key] !== schema[key]) {
-				typeChecker.hasError = true;
-			}
-		});
-	};
-	typeChecker.hasError = false;
-	typeChecker.callCount = 0;
-	return typeChecker;
-}
-
-const stateModule = (function() {
-	const state = { foo: 'bar' };
-	return { state };
-})();
-
-const complexStateModule = (function() {
-	const state = { foo: 'bar', baz: [ { a: [1, 2, 3] } ] };
-	return { state };
-})();
-
-
-const statelessActions = blixt.actions({
-	foo(context, arg1, arg2) {
-		return { context, arg1, arg2, bar: 'baz' };
-	}
-}).bindTo(null);
-
-const unboundActionModule = (function() {
-	return { actions: statelessActions };
-})();
-
-const arrayStateModule = (function() {
-	const state = [1, 2, 3];
-	const actions = blixt.actions({
-		append(context, number) {
-			context.state.push(number);
-		},
-		remove(context, number) {
-			const index = context.state.indexOf(number);
-			context.state.splice(index, 1);
-		}
-	}).bindTo(state);
-	return { state, actions };
-})();
-
-const counterActions = blixt.actions({
-	increment({ state }) {
-		state.number++;
-	},
-	incBy({ state }, amount) {
-		state.number += amount;
-	},
-	decrement({ actions }) {
-		actions.incBy(-1);
-	},
-	incWithoutRedraw({ state }) {
-		state.number++;
-		return { redraw: false, doubleN: state.number * 2 };
-	},
-	setTo({ state }, number) {
-		state.number = number;
-	},
-	asyncInc2({ state }) {
-		return new Promise(function(resolve) {
-			setTimeout(function() {
-				state.number += 2;
-				resolve();
-			}, 500);
-		});
-	},
-	asyncInc2NoRedraw({ state }) {
-		return new Promise(function(resolve) {
-			setTimeout(function() {
-				state.number += 2;
-				resolve({ redraw: false });
-			}, 500);
-		});
-	}
-});
+// ------------------- blixt setup --------------------
 
 const counterModule = (function() {
-	const state = { number: 0 };
-	const actions = counterActions.bindTo(state);
-	return { state, actions };
-})();
-
-const streamModule = (function() {
-	const count = stream(0);
-	const double = count.map((x) => x * 2);
-	const state = { count, double };
-	const actions = blixt.actions({
-		setCount(context, x) {
-			context.state.count(x);
+	const s = { number: 3 };
+	const a = blixt.actions({
+		set({ state }, input) { state.number = input; },
+		inc({ state }) { state.number++; },
+		dec({ state }) { state.number--; },
+		inc3({ actions }) {
+			actions.inc();
+			actions.inc();
+			actions.inc();
 		}
-	}).bindTo(state);
-	return { state, actions };
+	}).bindTo(s);
+	return { state: s, actions: a };
 })();
 
 
-const appRoot = document.getElementById('app');
-
-const app = blixt({
-	modules: {
-		stateModule,
-		complexStateModule,
-		unboundActionModule,
-		counter: counterModule,
-		arrayModule: arrayStateModule,
-		stream: streamModule
-	},
-	root: appRoot
+let redrawCount = 0;
+const batchedUpdater = batch(function(appState) {
+	if (typeof appState !== 'object') { throw new Error('onUpdate to be called with app state'); }
+	redrawCount++;
+	m.redraw();
 });
 
-const CountComponent = {
-	view: ({ attrs }) => blixt.h('h2', 'count: ' + attrs.number)
+const app = blixt({
+	modules: { count: counterModule },
+	onUpdate: batchedUpdater
+});
+
+const Component = {
+	view: () => m('div', 'value: ', blixt.getState('count', 'number'))
 };
 
-// ------------------- tests --------------------
+const mountNode = document.getElementById('app');
+m.mount(mountNode, Component);
 
-test('blixt', function(it) {
+test('Blixt', function(it) {
 
 	it('throws if initialized more than once', function(expect) {
-
-		expect(function() {
-			blixt({
-				modules: { stateModule, unboundActionModule, counter: counterModule },
-				root: appRoot
-			});
-		}).to.explode();
-
-		try {
-			blixt({
-				modules: { stateModule, unboundActionModule, counter: counterModule },
-				root: appRoot
-			});
-		}
-		catch (err) {
-			expect(err.message).to.equal('Blixt has already been initialized');
-		}
-
+		const errMessage = 'Blixt has already been initialized';
+		expect(() => blixt({})).to.explode();
+		try { blixt({}); }
+		catch (err) { expect(err.message).to.equal(errMessage); }
 	});
 
+	test('actions', function() {
 
-	test('view', function() {
-
-		it('renders hyperscript', function(expect) {
-			blixt.render(CountComponent, { number: 123 });
-			expect(appRoot.innerHTML).to.equal('<h2>count: 123</h2>');
-			blixt.render(CountComponent, { number: 456 });
-			expect(appRoot.innerHTML).to.equal('<h2>count: 456</h2>');
-			expect(renderCount).to.equal(2);
+		const actions = blixt.actions({
+			five: () => 5,
+			foo: () => 'foo!',
+			getModel: (model) => model,
+			getInput: (model, input) => input,
+			incCount({ state }) {
+				state.count++;
+			}
 		});
 
-		it('redraws async', function(expect, done) {
-			blixt.redraw();
-			expect(renderCount).to.equal(2);
-			setTimeout(function() {
-				expect(renderCount).to.equal(3);
+		it('redraws after actions', function(expect, done) {
+			redrawCount = 0;
+			actions.bindTo(null).foo();
+			requestAnimationFrame(function() {
+				expect(redrawCount).to.equal(1);
 				done();
-			}, 50);
+			});
 		});
 
 		it('batches redraws', function(expect, done) {
-			const initialRenderCount = renderCount;
-			blixt.redraw();
-			blixt.redraw();
-			blixt.redraw();
-			blixt.redraw();
-			blixt.redraw();
-			expect(renderCount).to.equal(3);
-			setTimeout(function() {
-				expect(renderCount).to.equal(initialRenderCount + 1);
+			redrawCount = 0;
+			const a = actions.bindTo(null);
+			a.five();
+			a.foo();
+			a.foo();
+			a.foo();
+			a.foo();
+			a.foo();
+			requestAnimationFrame(function() {
+				expect(redrawCount).to.equal(1);
 				done();
-			}, 50);
+			});
+		});
+
+		it('stateless', function(expect) {
+			const a = actions.bindTo(null);
+			expect(a.five()).to.equal(5);
+			expect(a.foo()).to.equal('foo!');
+			expect(a.getModel().state).to.equal(null);
+			expect(a.getModel().actions).to.equal(a);
+			expect(a.getInput(123)).to.equal(123);
+		});
+
+		it('stateful', function(expect) {
+			const state = { count: 5 };
+			const a = actions.bindTo(state);
+			expect(a.getModel()).to.deep.equal({ actions: a, state: { count: 5 } });
+			a.incCount();
+			expect(a.getModel()).to.deep.equal({ actions: a, state: { count: 6 } });
+		});
+
+		it('stateful (multiple)', function(expect) {
+			const state1 = { count: 5 };
+			const state2 = { count: -50 };
+			const a = actions.bindTo(state1);
+			const b = actions.bindTo(state2);
+			expect(a.getModel().state).to.deep.equal({ count: 5 });
+			expect(b.getModel().state).to.deep.equal({ count: -50 });
+			a.incCount();
+			expect(a.getModel().state).to.deep.equal({ count: 6 });
+			expect(b.getModel().state).to.deep.equal({ count: -50 });
+			b.incCount();
+			b.incCount();
+			expect(b.getModel().state).to.deep.equal({ count: -48 });
+			expect(a.getModel().state).to.deep.equal({ count: 6 });
+		});
+
+		it('runs callback after actions are initialized', function(expect) {
+			let callCount = 0;
+			const state1 = { x: 3 };
+			const state2 = { x: 5 };
+			const a = blixt.actions({}, function(state) {
+				if (callCount === 0) { expect(state.x).to.equal(3); }
+				else { expect(state.x).to.equal(5); }
+				callCount++;
+			});
+			a.bindTo(state1);
+			a.bindTo(state2);
+			expect(callCount).to.equal(2);
+		});
+
+		it('runs callback after actions are run', function(expect) {
+			let callCount = 0;
+			const s = { x: 3 };
+			const actions1 = blixt.actions({ inc({ state }) { state.x++; } }, function(state) {
+				expect(typeof state.x).to.equal('number');
+				callCount++;
+			});
+			const a = actions1.bindTo(s); // 1
+			a.inc();                      // 2
+			a.inc();                      // 3
+			a.inc();                      // 4
+			expect(callCount).to.equal(4);
+		});
+
+		it('works with array state', function(expect) {
+			const s = [9, 8, 7];
+			const a = blixt.actions({
+				append({ state }, input) { state.push(input); }
+			}).bindTo(s);
+			a.append(6);
+			expect(s).to.deep.equal([9, 8, 7, 6]);
+		});
+
+	});
+
+	test('forceUpdate', function() {
+
+		it('causes an update', function(expect, done) {
+			requestAnimationFrame(function() {
+				redrawCount = 0;
+				blixt.forceUpdate();
+				requestAnimationFrame(function() {
+					expect(redrawCount).to.equal(1);
+					done();
+				});
+			});
 		});
 
 	});
 
 	test('modules', function() {
 
-		it('initializes modules', function(expect) {
-			expect(blixt.getState('counter')).to.deep.equal({ number: 0 });
+		it('gets initial state', function(expect) {
+			expect(blixt.getState()).to.deep.equal({ count: { number: 3 } });
+			expect(blixt.getState('count')).to.deep.equal({ number: 3 });
 		});
 
-		it('initializes state-only modules', function(expect) {
-			expect(blixt.getState('stateModule')).to.deep.equal({ foo: 'bar' });
+		it('gets state by traversal', function(expect) {
+			expect(blixt.getState('count', 'number')).to.equal(3);
 		});
 
-		it('initializes actions-only modules', function(expect) {
-			expect(blixt.getState('unboundActionModule')).to.deep.equal({});
+		it('has global actions', function(expect) {
+			app.count.set(10);
+			app.count.inc();
+			expect(blixt.getState('count', 'number')).to.equal(11);
 		});
 
-		it('initializes array modules', function(expect) {
-			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3]);
-		});
-
-	});
-
-	test('getState', function() {
-		it('traverses path to state', function(expect) {
-			expect(blixt.getState('complexStateModule', 'baz', '0', 'a')).to.deep.equal([1, 2, 3]);
-		});
-		it('traverses array state', function(expect) {
-			expect(blixt.getState('arrayModule', 2)).to.equal(3);
-		});
-	});
-
-	test('actions', function() {
-
-		it('works if not bound to state', function(expect) {
-			expect(typeof statelessActions.foo).to.equal('function');
-			expect(statelessActions.foo(1, 'foo').arg1).to.equal(1);
-			expect(statelessActions.foo(1, 'foo').arg2).to.equal('foo');
-			expect(statelessActions.foo(1, 'foo').bar).to.equal('baz');
-			expect(statelessActions.foo(1, 'foo').context.actions).to.equal(statelessActions);
-			expect(statelessActions.foo(1, 'foo').context.state).to.equal(null);
-		});
-
-		it('works if bound to state', function(expect) {
-			const state = { number: 0 };
-			const actions = counterActions.bindTo(state);
-			actions.increment();
-			expect(state.number).to.equal(1);
-		});
-
-		it('redraws when action is complete', function(expect, done) {
-			const state = { number: 1000 };
-			const actions = counterActions.bindTo(state);
-			const initialRenderCount = renderCount;
-			blixt.render(CountComponent, state);
-			expect(renderCount).to.equal(initialRenderCount + 1);
-			expect(appRoot.innerHTML).to.equal('<h2>count: 1000</h2>');
-			actions.decrement();
-			setTimeout(function() {
-				expect(renderCount).to.equal(initialRenderCount + 2);
-				expect(appRoot.innerHTML).to.equal('<h2>count: 999</h2>');
-				done();
-			}, 50);
-		});
-
-		it('does not redraw if action returns `noRedraw`', function(expect, done) {
-			const state = { number: 1000 };
-			const actions = counterActions.bindTo(state);
-			const initialRenderCount = renderCount;
-			blixt.render(CountComponent, state);
-			expect(renderCount).to.equal(initialRenderCount + 1);
-			expect(appRoot.innerHTML).to.equal('<h2>count: 1000</h2>');
-			actions.incWithoutRedraw();
-			setTimeout(function() {
-				expect(renderCount).to.equal(initialRenderCount + 1);
-				expect(appRoot.innerHTML).to.equal('<h2>count: 1000</h2>');
-				blixt.redraw();
-				setTimeout(function() {
-					expect(renderCount).to.equal(initialRenderCount + 2);
-					expect(appRoot.innerHTML).to.equal('<h2>count: 1001</h2>');
-					done();
-				}, 50);
-			}, 50);
-		});
-
-		it('runs function (typecheck) when actions are bound', function(expect) {
-			const T = typeCheck({ foo: 'string', bar: 'number', baz: 'function' });
-			const goodState = { foo: '123', bar: 456, baz: function() {} };
-			const badState = { foo: 123, bar: 456, baz: 789 };
-
-			expect(T.hasError).to.equal(false);
-			expect(T.callCount).to.equal(0);
-
-			blixt.actions({}, T).bindTo(goodState);
-			expect(T.hasError).to.equal(false);
-			expect(T.callCount).to.equal(1);
-
-			blixt.actions({}, T).bindTo(badState);
-			expect(T.hasError).to.equal(true);
-			expect(T.callCount).to.equal(2);
-		});
-
-		it('runs function (typecheck) after an action runs', function(expect) {
-			const T = typeCheck({ foo: 'number', bar: 'number' });
-			const model = { foo: 123, bar: 456 };
-			const actions = {
-				incFoo({ state }) { state.foo = state.foo + 1; }
-			};
-			const boundActions = blixt.actions(actions, T).bindTo(model);
-			expect(T.hasError).to.equal(false);
-			expect(T.callCount).to.equal(1);
-
-			boundActions.incFoo();
-			expect(model.foo).to.equal(124);
-			expect(T.callCount).to.equal(2);
-			expect(T.hasError).to.equal(false);
-
-			model.foo = 'foo:';
-			boundActions.incFoo();
-			expect(model.foo).to.equal('foo:1');
-			expect(T.callCount).to.equal(3);
-			expect(T.hasError).to.equal(true);
-		});
-
-		it('[wait] (prepare for async test next)', function(expect, done) {
-			setTimeout(done, 50);
-		});
-
-		it('runs async promise action', function(expect, done) {
-			const state = { number: 40 };
-			const actions = counterActions.bindTo(state);
-			const initialRenderCount = renderCount;
-			actions.asyncInc2();
-			expect(state.number).to.equal(40);
-			expect(renderCount).to.equal(initialRenderCount);
-			setTimeout(function() {
-				expect(renderCount).to.equal(initialRenderCount);
-				expect(state.number).to.equal(40);
-				setTimeout(function() {
-					expect(renderCount).to.equal(initialRenderCount + 1);
-					expect(state.number).to.equal(42);
-					done();
-				}, 700);
-			}, 50);
-		});
-
-		it('runs async promise action that resolves to `noRedraw`', function(expect, done) {
-			const state = { number: 2000 };
-			const actions = counterActions.bindTo(state);
-			const initialRenderCount = renderCount;
-			blixt.render(CountComponent, state);
-			expect(renderCount).to.equal(initialRenderCount + 1);
-			expect(appRoot.innerHTML).to.equal('<h2>count: 2000</h2>');
-			actions.asyncInc2NoRedraw();
-			setTimeout(function() {
-				expect(renderCount).to.equal(initialRenderCount + 1);
-				expect(appRoot.innerHTML).to.equal('<h2>count: 2000</h2>');
-				expect(state.number).to.equal(2002);
-				blixt.redraw();
-				setTimeout(function() {
-					expect(renderCount).to.equal(initialRenderCount + 2);
-					expect(appRoot.innerHTML).to.equal('<h2>count: 2002</h2>');
-					done();
-				}, 50);
-			}, 700);
-		});
-
-		it('runs function (typecheck) after async action promise resolves [pass]', function(expect, done) {
-			const T = typeCheck({ foo: 'number', bar: 'number' });
-			const model = { foo: 123, bar: 456 };
-			const actions = {
-				incFooAsync({ state }) {
-					return new Promise(function(resolve) {
-						setTimeout(function() {
-							state.foo = state.foo + 1;
-							resolve();
-						}, 500);
-					});
-				}
-			};
-
-			const boundActions = blixt.actions(actions, T).bindTo(model);
-			expect(T.hasError).to.equal(false);
-			expect(T.callCount).to.equal(1);
-
-			// nothing changes until promise resolves
-			boundActions.incFooAsync();
-			expect(model.foo).to.equal(123);
-			expect(T.callCount).to.equal(1);
-			expect(T.hasError).to.equal(false);
-
-			setTimeout(function() {
-				expect(model.foo).to.equal(124);
-				expect(T.callCount).to.equal(2);
-				expect(T.hasError).to.equal(false);
-				done();
-			}, 700);
-
-		});
-
-		it('runs function (typecheck) after async action promise resolves [fail]', function(expect, done) {
-			const T = typeCheck({ foo: 'number', bar: 'number' });
-			const model = { foo: 123, bar: 456 };
-			const actions = {
-				incFooAsync({ state }) {
-					return new Promise(function(resolve) {
-						setTimeout(function() {
-							state.foo = state.foo + 1;
-							resolve();
-						}, 500);
-					});
-				}
-			};
-
-			const boundActions = blixt.actions(actions, T).bindTo(model);
-			model.foo = 'foo:';
-			expect(T.hasError).to.equal(false);
-			expect(T.callCount).to.equal(1);
-
-			// nothing changes until promise resolves
-			// no typechecking occurs yet either
-			boundActions.incFooAsync();
-			expect(model.foo).to.equal('foo:');
-			expect(T.callCount).to.equal(1);
-			expect(T.hasError).to.equal(false);
-
-			setTimeout(function() {
-				expect(model.foo).to.equal('foo:1');
-				expect(T.callCount).to.equal(2);
-				expect(T.hasError).to.equal(true);
-				done();
-			}, 700);
-
+		it('has actions that call other actions', function(expect) {
+			app.count.set(10);
+			app.count.inc3();
+			expect(blixt.getState('count', 'number')).to.equal(13);
 		});
 
 	});
 
-	test('emit app actions', function() {
-
-		it('triggers bound actions', function(expect) {
-			expect(blixt.getState('counter').number).to.equal(0);
-			app.counter.increment();
-			expect(blixt.getState('counter').number).to.equal(1);
-			app.counter.decrement();
-			expect(blixt.getState('counter').number).to.equal(0);
-			app.counter.incBy(10);
-			expect(blixt.getState('counter').number).to.equal(10);
-		});
-
-		it('triggers unbound actions', function(expect) {
-			const x = app.unboundActionModule.foo('hello', 'world');
-			expect(x.arg1).to.equal('hello');
-			expect(x.arg2).to.equal('world');
-			expect(x.bar).to.equal('baz');
-			expect(x.context.actions).to.equal(statelessActions);
-			expect(x.context.state).to.equal(null);
-		});
-
-		it('updates state synchronously', function(expect) {
-			app.counter.setTo(555);
-			const state = blixt.getState('counter');
-			expect(state).to.deep.equal({ number: 555 });
-		});
-
-		it('updates DOM correctly', function(expect, done) {
-			const state = blixt.getState('counter');
-			expect(state).to.deep.equal({ number: 555 }); // shouldn't have changed from previous test
-			const initialRenderCount = renderCount;
-			blixt.render(CountComponent, state);
-			app.counter.incBy(222);
-			expect(renderCount).to.equal(initialRenderCount + 1);
-			expect(appRoot.innerHTML).to.equal('<h2>count: 555</h2>');
-			setTimeout(function() {
-				expect(renderCount).to.equal(initialRenderCount + 2);
-				expect(appRoot.innerHTML).to.equal('<h2>count: 777</h2>');
+	test('dom updates', function() {
+		it('works', function(expect, done) {
+			app.count.set(123);
+			requestAnimationFrame(function() {
+				expect(mountNode.innerHTML).to.equal('<div>value: 123</div>');
 				done();
-			}, 50);
+			});
 		});
-
-		it('works with array state', function(expect) {
-			const state = blixt.getState('arrayModule');
-			expect(state).to.deep.equal([1, 2, 3]);
-			app.arrayModule.append(4);
-			app.arrayModule.append(100);
-			app.arrayModule.append(10);
-			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3, 4, 100, 10]);
-			app.arrayModule.remove(100);
-			expect(blixt.getState('arrayModule')).to.deep.equal([1, 2, 3, 4, 10]);
-		});
-
-		// not sure if this will be useful
-		it('works with stream state', function(expect) {
-			const state = blixt.getState('stream');
-			expect(state.count()).to.equal(0);
-			expect(state.double()).to.equal(0);
-			app.stream.setCount(5);
-			expect(state.count()).to.equal(5);
-			expect(state.double()).to.equal(10);
-		});
-
 	});
 
 	test('works with exported functions', function() {
-
-		it('getState', function(expect) {
-			expect(getState('counter')).to.deep.equal({ number: 777 });
-			expect(getState).to.equal(blixt.getState);
-		});
-
-		it('actions', function(expect) {
-			expect(importedActions).to.equal(blixt.actions);
-		});
-
-		it('render', function(expect) {
-			expect(render).to.equal(oldRender);
-		});
-
-		it('redraw', function(expect) {
-			expect(redraw).to.equal(blixt.redraw);
-		});
-
-		it('hyperscript', function(expect) {
-			expect(h).to.equal(blixt.h);
-		});
-
+		it('getState', (t) => t(getState).equal(blixt.getState));
+		it('actions', (t) => t(importedActions).equal(blixt.actions));
+		it('forceUpdate', (t) => t(forceUpdate).equal(blixt.forceUpdate));
 	});
 
 })();

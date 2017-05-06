@@ -1,23 +1,8 @@
 import blixt from '../index.js';
 
+
 const hasOwn = Object.prototype.hasOwnProperty;
-
-// given ['', 'foo', 'bar', '', ''], return ['foo', 'bar']
-function trim(arr) {
-	let i = 0;
-	let j = arr.length;
-	while (i < j) {
-		if (arr[i]) { break; }
-		i++;
-	}
-	while (j > i) { // >= ?
-		if (arr[j]) { break; }
-		j--;
-	}
-	return arr.slice(i, j + 1);
-}
-
-const splitRoute = (s) => trim(s.split('/'));
+const splitRoute = (s) => s.split('/').filter((x) => Boolean(x));
 
 
 // merges two loops into a single loop:
@@ -34,35 +19,15 @@ const splitRoute = (s) => trim(s.split('/'));
 // be an empty object) is returned otherwise.
 
 function getParamsIfMatch(routeSegments, urlSegments) {
-	// can be less than if variadic, otherwise will be equal in length
-	if (routeSegments.length > urlSegments.length) { return null; }
+	if (routeSegments.length !== urlSegments.length) { return null; }
 	const params = {};
-	let isVariadic = false;
 	for (let i = 0; i < routeSegments.length; i++) {
-		const p = routeSegments[i].indexOf(':'); // parameterized part's index
-		if (p > -1) {
-			// matches /user_john/foo to /user_:username/foo
-			// exits early here in cases like: /user/foo where unparameterized parts do not match
-			if (routeSegments[i].slice(0, p) !== urlSegments[i].slice(0, p)) { return null; }
-			isVariadic = routeSegments[i].slice(-3) === '...';
-			if (isVariadic) {
-				// cut off ":" and "..." from param name  = url from current segment onward
-				params[routeSegments[i].slice(p + 1, -3)] = urlSegments.slice(i, urlSegments.length).join('/');
-				break;
-			}
-			else {
-				// p + 1 to not include ":"           = p (since actual url will not contain ":")
-				params[routeSegments[i].slice(p + 1)] = urlSegments[i].slice(p);
-				continue;
-			}
+		if (routeSegments[i][0] === ':') {
+			params[routeSegments[i].slice(1)] = urlSegments[i];
+			continue;
 		}
 		if (routeSegments[i] !== urlSegments[i]) { return null; }
 	}
-
-	// whether it's variadic can only be known after the loop,
-	// so if it was not and the lengths differ at this point
-	// there was no match
-	if (!isVariadic && routeSegments.length !== urlSegments.length) { return null; }
 	return params;
 }
 
@@ -89,17 +54,21 @@ export default function router(routes) {
 		set({ actions }, path) {
 			window.history.pushState(null, '', path);
 			actions.resolveRoute();
-			// return { update: false };
+			return { redraw: false };
 		},
-		resolveRoute({ state }) {
+		silentResolveRoute({ state }) {
 			const match = getMatch(routes, splitRoute(window.location.pathname));
 			state.route = match.route;
 			state.path = window.location.pathname;
 			state.hash = window.location.hash;
 			state.search = window.location.search;
 			state.params = match.params;
+			return { redraw: false, match };
+		},
+		resolveRoute({ state, actions }) {
+			const { match } = actions.silentResolveRoute();
 			routes[match.route](state);
-			// return { update: false };
+			return { redraw: false };
 		}
 	};
 
@@ -115,7 +84,13 @@ export default function router(routes) {
 
 	actions.resolveRoute();
 	window.onpopstate = actions.resolveRoute;
+	window.onhashchange = actions.silentResolveRoute;
 	
-	return { state, actions };
+	const routerModule = {
+		state,
+		actions
+	};
+
+	return routerModule;
 
 }

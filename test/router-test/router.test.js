@@ -2,10 +2,6 @@ import test from 'testesterone';
 import blixt from '../../index.js';
 import router from '../../router';
 
-// import { h } from '../../index.js';
-
-const appRoot = document.getElementById('app');
-
 function TestRoute(route) {
 	TestRoute.route = route;
 	TestRoute.callCount = TestRoute.callCount + 1;
@@ -18,42 +14,22 @@ function CatchAll(route) {
 }
 CatchAll.callCount = 0;
 
-const Component = {
-	view({ attrs }) {
-		return [
-			blixt.h('strong', 'route: '),
-			blixt.h('span', attrs.route),
-			blixt.h('hr'),
-			blixt.h('strong', 'path: '),
-			blixt.h('span', attrs.path),
-			blixt.h('hr'),
-			blixt.h('strong', 'hash: '),
-			blixt.h('span', attrs.hash),
-			blixt.h('hr'),
-			blixt.h('strong', 'search: '),
-			blixt.h('span', attrs.search),
-			blixt.h('hr'),
-			blixt.h('strong', 'params: '),
-			blixt.h('span', JSON.stringify(attrs.params, null, 2))
-		];
-	}
-};
 
 const app = blixt({
 	modules: {
-		router: router({
+		route: router({
 			'/': TestRoute,
 			'/foo': TestRoute,
 			'/foo/bar': TestRoute,
 			'/foo/:baz': TestRoute,
+			'/bar/:anything...': TestRoute,
 			'/test/': TestRoute,
 			'/test/123/:foo/test/:bar/:baz': TestRoute,
-			'/rendered': (route) => blixt.render(Component, route),
-			'/rendered/:foo/:bar': (route) => blixt.render(Component, route),
+			'/user_:name/profile': TestRoute,
+			'/user_:name/profile/:foo/:bar/123/:baz/:qux...': TestRoute,
 			'*': CatchAll
 		})
-	},
-	root: appRoot
+	}
 });
 
 window.app = app;
@@ -69,7 +45,7 @@ test('blixt router', function(it) {
 		});
 
 		it('sets initial state', function(expect) {
-			expect(blixt.getState('router')).to.deep.equal({
+			expect(blixt.getState('route')).to.deep.equal({
 				route: '/',
 				path: '/',
 				hash: '',
@@ -85,81 +61,154 @@ test('blixt router', function(it) {
 		it('changes route to non-matched route', function(expect) {
 			const catchAllCount = CatchAll.callCount;
 			expect(window.location.pathname).to.equal('/');
-			app.router.set('/some-route');
+			app.route.set('/some-route');
 			expect(window.location.pathname).to.equal('/some-route');
-			expect(blixt.getState('router', 'route')).to.equal('*');
-			expect(blixt.getState('router', 'path')).to.equal('/some-route');
+			expect(blixt.getState('route', 'route')).to.equal('*');
+			expect(blixt.getState('route', 'path')).to.equal('/some-route');
 			expect(CatchAll.callCount).to.equal(catchAllCount + 1);
-			expect(CatchAll.route).to.deep.equal(blixt.getState('router'));
+			expect(CatchAll.route).to.deep.equal(blixt.getState('route'));
+			app.route.set('/');
 		});
 
 		it('changes route to matched route', function(expect) {
 			const callCount = TestRoute.callCount;
-			app.router.set('/foo');
+			app.route.set('/foo');
 			expect(window.location.pathname).to.equal('/foo');
-			expect(blixt.getState('router', 'route')).to.equal('/foo');
-			expect(blixt.getState('router', 'path')).to.equal('/foo');
+			expect(blixt.getState('route', 'route')).to.equal('/foo');
+			expect(blixt.getState('route', 'path')).to.equal('/foo');
 			expect(TestRoute.callCount).to.equal(callCount + 1);
+			app.route.set('/');
+		});
+
+		it('changes route to matched route (non-zero parameterized index)', function(expect) {
+			const callCount = TestRoute.callCount;
+			app.route.set('/user_joe/profile');
+			expect(window.location.pathname).to.equal('/user_joe/profile');
+			expect(blixt.getState('route', 'route')).to.equal('/user_:name/profile');
+			expect(blixt.getState('route', 'path')).to.equal('/user_joe/profile');
+			expect(blixt.getState('route', 'params')).to.deep.equal({ name: 'joe' });
+			expect(TestRoute.callCount).to.equal(callCount + 1);
+			app.route.set('/');
 		});
 
 		it('changes route to matched route with hash', function(expect) {
-			app.router.set('/foo#bar');
+			app.route.set('/foo#bar');
 			expect(window.location.pathname).to.equal('/foo');
 			expect(window.location.hash).to.equal('#bar');
-			expect(blixt.getState('router', 'route')).to.equal('/foo');
-			expect(blixt.getState('router', 'path')).to.equal('/foo');
-			expect(blixt.getState('router', 'hash')).to.equal('#bar');
+			expect(blixt.getState('route', 'route')).to.equal('/foo');
+			expect(blixt.getState('route', 'path')).to.equal('/foo');
+			expect(blixt.getState('route', 'hash')).to.equal('#bar');
+			app.route.set('/');
 		});
 
-		it('changes route to matched route with search');
-		it('changes route to matched route with hash and search');
-		it('changes route to matched route with params');
+		it('changes route to matched route with search', function(expect) {
+			app.route.set('/foo?bar=baz');
+			expect(window.location.pathname).to.equal('/foo');
+			expect(window.location.hash).to.equal('');
+			expect(blixt.getState('route', 'route')).to.equal('/foo');
+			expect(blixt.getState('route', 'path')).to.equal('/foo');
+			expect(blixt.getState('route', 'hash')).to.equal('');
+			expect(blixt.getState('route', 'search')).to.equal('?bar=baz');
+			app.route.set('/');
+		});
+
+		it('changes route to matched route with hash and search', function(expect) {
+			app.route.set('/foo?bar=baz#qux');
+			expect(window.location.pathname).to.equal('/foo');
+			expect(window.location.hash).to.equal('#qux');
+			expect(blixt.getState('route', 'route')).to.equal('/foo');
+			expect(blixt.getState('route', 'path')).to.equal('/foo');
+			expect(blixt.getState('route', 'hash')).to.equal('#qux');
+			expect(blixt.getState('route', 'search')).to.equal('?bar=baz');
+			app.route.set('/');
+		});
+
+		it('changes route to matched route with params', function(expect) {
+			app.route.set('/foo/test123');
+			expect(window.location.pathname).to.equal('/foo/test123');
+			expect(blixt.getState('route', 'route')).to.equal('/foo/:baz');
+			expect(blixt.getState('route', 'path')).to.equal('/foo/test123');
+			expect(blixt.getState('route', 'params')).to.deep.equal({ baz: 'test123' });
+			app.route.set('/');
+		});
+
+		it('changes route to matched route with many params', function(expect) {
+			app.route.set('/test/123/asd/test/dfg/123');
+			expect(blixt.getState('route', 'params')).to.deep.equal({
+				foo: 'asd',
+				bar: 'dfg',
+				baz: '123'
+			});
+			app.route.set('/');
+		});
+
+		it('changes route to variadic route', function(expect) {
+			app.route.set('/bar/https://test.com/some/url');
+			expect(blixt.getState('route', 'params')).to.deep.equal({
+				anything: 'https://test.com/some/url'
+			});
+			app.route.set('/');
+		});
+
+		it('changes route to complex route', function(expect) {
+			// '/user_:name/profile/:foo/:bar/123/:baz/:qux...'
+			app.route.set('/user_john/profile/abc/zyx/123/456/http://test.com');
+			expect(blixt.getState('route', 'params')).to.deep.equal({
+				name: 'john',
+				foo: 'abc',
+				bar: 'zyx',
+				baz: '456',
+				qux: 'http://test.com'
+			});
+			app.route.set('/');
+		});
 
 		it('changes route to root route', function(expect) {
 			const rootCount = TestRoute.callCount;
-			app.router.set('/');
+			app.route.set('/');
 			expect(window.location.pathname).to.equal('/');
-			expect(blixt.getState('router', 'route')).to.equal('/');
-			expect(blixt.getState('router', 'path')).to.equal('/');
+			expect(blixt.getState('route', 'route')).to.equal('/');
+			expect(blixt.getState('route', 'path')).to.equal('/');
 			expect(TestRoute.callCount).to.equal(rootCount + 1);
+			app.route.set('/');
 		});
 
 	});
 
-	test('on change', function() {
+	test('navigation changes', function() {
 
-		it('updates state on hash change [note: onhashchange is async]', function(expect, done) {
-			expect(window.location.hash).to.equal('');
-			expect(blixt.getState('router', 'hash')).to.equal('');
-			window.location.hash = 'foo';
+		it('updates state on navigation back (async)', function(expect, done) {
+			expect(blixt.getState('route', 'hash')).to.equal('');
+			app.route.set('/user_jimmy/profile');
+			app.route.set('/');
+			window.history.back();
 			setTimeout(function() {
-				expect(blixt.getState('router', 'hash')).to.equal('#foo');
-				window.location.hash = '';
-				setTimeout(done, 0);
-			}, 0);
+				expect(blixt.getState('route')).to.deep.equal({
+					route: '/user_:name/profile',
+					path: '/user_jimmy/profile',
+					hash: '',
+					search: '',
+					params: { name: 'jimmy' }
+				});
+				done();
+			}, 300); // window.onpopstate can take time to resolve
 		});
 
-		it('updates state on navigation back', function(expect, done) {
-			expect(blixt.getState('router', 'hash')).to.equal('');
-			window.history.pushState({}, '', '/foo/bar');
-			window.history.pushState({}, '', '/test');
-			// window.history.back();
+		// NOTE: this test depends on the previous test
+		// which sets history back once
+		it('updates state on navigation forward', function(expect, done) {
+			window.history.forward();
 			setTimeout(function() {
-				expect(blixt.getState('router')).to.deep.equal({
-					route: '/foo/bar',
-					path: '/foo/bar',
+				expect(blixt.getState('route')).to.deep.equal({
+					route: '/',
+					path: '/',
 					hash: '',
 					search: '',
 					params: {}
 				});
-				window.history.forward();
-				window.history.pushState({}, '', '/');
 				done();
-			}, 0);
-
+			}, 300); // window.onpopstate can take time to resolve
 		});
-
-		it('updates state on navigation forward');
 
 	});
 
