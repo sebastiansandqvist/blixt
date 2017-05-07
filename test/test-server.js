@@ -18,5 +18,5 @@ http.createServer(function(req, res) {
 	}
 	return res.end(html); // all requests (except request for js) resolve to test.html
 }).listen(3000, function() {
-	console.log('Test server running on localhost:3000');
+	console.log('Test server running on http://localhost:3000');
 });

@@ -4,7 +4,7 @@ import batch from '../../helpers/batch.js';
 import m from 'mithril';
 
 import {
-	forceUpdate,
+	update,
 	getState,
 	actions as importedActions
 } from '../../index.js';
@@ -28,15 +28,25 @@ const counterModule = (function() {
 
 
 let redrawCount = 0;
-const batchedUpdater = batch(function(appState) {
-	if (typeof appState !== 'object') { throw new Error('onUpdate to be called with app state'); }
+const batchedUpdater = batch(function(appState, label) {
+	if (typeof appState !== 'object') { throw new Error('batched onUpdate to be called with app state'); }
+	if (typeof label !== 'string') { throw new Error('batched onUpdate to be called with caller\'s name'); }
 	redrawCount++;
 	m.redraw();
 });
 
+const NO_NAME_LABEL = '[Anonymous update]';
+let lastCalledActionLabel = '';
+let lastCalledActionState = null;
 const app = blixt({
 	modules: { count: counterModule },
-	onUpdate: batchedUpdater
+	onUpdate: function(appState, label, state) {
+		if (typeof appState !== 'object') { throw new Error('onUpdate to be called with app state'); }
+		if (typeof label !== 'string') { throw new Error('onUpdate to be called with caller\'s name'); }
+		batchedUpdater(appState, label);
+		lastCalledActionLabel = label;
+		lastCalledActionState = state;
+	}
 });
 
 const Component = {
@@ -70,25 +80,29 @@ test('Blixt', function(it) {
 		it('redraws after actions', function(expect, done) {
 			redrawCount = 0;
 			actions.bindTo(null).foo();
-			requestAnimationFrame(function() {
+			setTimeout(function() {
 				expect(redrawCount).to.equal(1);
 				done();
-			});
+			}, 50);
 		});
 
 		it('batches redraws', function(expect, done) {
 			redrawCount = 0;
 			const a = actions.bindTo(null);
 			a.five();
+			expect(lastCalledActionLabel).to.equal('five');
+			a.foo();
+			expect(lastCalledActionLabel).to.equal('foo');
+			expect(lastCalledActionState).to.equal(null);
 			a.foo();
 			a.foo();
 			a.foo();
 			a.foo();
-			a.foo();
-			requestAnimationFrame(function() {
+			expect(lastCalledActionLabel).to.equal('foo');
+			setTimeout(function() {
 				expect(redrawCount).to.equal(1);
 				done();
-			});
+			}, 50);
 		});
 
 		it('stateless', function(expect) {
@@ -98,6 +112,7 @@ test('Blixt', function(it) {
 			expect(a.getModel().state).to.equal(null);
 			expect(a.getModel().actions).to.equal(a);
 			expect(a.getInput(123)).to.equal(123);
+			expect(lastCalledActionState).to.equal(null);
 		});
 
 		it('stateful', function(expect) {
@@ -106,6 +121,7 @@ test('Blixt', function(it) {
 			expect(a.getModel()).to.deep.equal({ actions: a, state: { count: 5 } });
 			a.incCount();
 			expect(a.getModel()).to.deep.equal({ actions: a, state: { count: 6 } });
+			expect(lastCalledActionState).to.equal(state);
 		});
 
 		it('stateful (multiple)', function(expect) {
@@ -121,7 +137,9 @@ test('Blixt', function(it) {
 			b.incCount();
 			b.incCount();
 			expect(b.getModel().state).to.deep.equal({ count: -48 });
+			expect(lastCalledActionState).to.equal(state2);
 			expect(a.getModel().state).to.deep.equal({ count: 6 });
+			expect(lastCalledActionState).to.equal(state1);
 		});
 
 		it('runs callback after actions are initialized', function(expect) {
@@ -163,17 +181,26 @@ test('Blixt', function(it) {
 
 	});
 
-	test('forceUpdate', function() {
+	test('update', function() {
 
 		it('causes an update', function(expect, done) {
-			requestAnimationFrame(function() {
+			setTimeout(function() {
 				redrawCount = 0;
-				blixt.forceUpdate();
-				requestAnimationFrame(function() {
+				blixt.update();
+				expect(lastCalledActionLabel).to.equal(NO_NAME_LABEL);
+				setTimeout(function() {
 					expect(redrawCount).to.equal(1);
 					done();
-				});
-			});
+				}, 50);
+			}, 50);
+		});
+
+		it('can be a named update', function(expect, done) {
+			setTimeout(function() {
+				blixt.update('my label');
+				expect(lastCalledActionLabel).to.equal('my label');
+				setTimeout(done, 50);
+			}, 50);
 		});
 
 	});
@@ -206,17 +233,17 @@ test('Blixt', function(it) {
 	test('dom updates', function() {
 		it('works', function(expect, done) {
 			app.count.set(123);
-			requestAnimationFrame(function() {
+			setTimeout(function() {
 				expect(mountNode.innerHTML).to.equal('<div>value: 123</div>');
 				done();
-			});
+			}, 50);
 		});
 	});
 
 	test('works with exported functions', function() {
 		it('getState', (t) => t(getState).equal(blixt.getState));
 		it('actions', (t) => t(importedActions).equal(blixt.actions));
-		it('forceUpdate', (t) => t(forceUpdate).equal(blixt.forceUpdate));
+		it('forceUpdate', (t) => t(update).equal(blixt.update));
 	});
 
 })();

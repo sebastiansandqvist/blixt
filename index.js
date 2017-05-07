@@ -26,15 +26,13 @@ function blixt(opts) {
 
 }
 
-
-export function forceUpdate() {
-	app.onUpdate(app.state);
+export function update(label = '[Anonymous update]', state = null) {
+	app.onUpdate(app.state, label, state);
 }
 
 export function getState(...path) {
 	return path.reduce((state, segment) => state[segment], app.state);
 }
-
 
 function getContext(state, boundActions) {
 	return {
@@ -45,9 +43,9 @@ function getContext(state, boundActions) {
 
 const isPromise = (x) => x && x.constructor && (typeof x.then === 'function');
 
-function maybeUpdate(result) {
+function maybeUpdate(result, callerName, state) {
 	if (result && result.update === false) { return; }
-	forceUpdate();
+	update(callerName, state);
 }
 
 export function actions(actionsObj, fn = noop) {
@@ -58,15 +56,17 @@ export function actions(actionsObj, fn = noop) {
 			Object.keys(actionsObj).forEach(function(key) {
 				const action = actionsObj[key];
 				boundActions[key] = function(...args) {
+					// what if:
+					// result = action.apply(getContext(state, boundActions), args)
 					const result = action.apply(action, [getContext(state, boundActions)].concat(args));
 					if (isPromise(result)) {
 						return result.then(function(value) {
 							fn(state);
-							maybeUpdate(value);
+							maybeUpdate(value, action.name, state);
 						});
 					}
 					fn(state);
-					maybeUpdate(result);
+					maybeUpdate(result, action.name, state);
 					return result;
 				};
 			});
@@ -76,7 +76,7 @@ export function actions(actionsObj, fn = noop) {
 }
 
 blixt.getState = getState;
-blixt.forceUpdate = forceUpdate;
+blixt.update = update;
 blixt.actions = actions;
 
 export default blixt;
