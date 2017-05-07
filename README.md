@@ -1,8 +1,8 @@
 # Blixt
 
-Blixt is a state management library for browser applications. Blixt goes hand-in-hand with a recommended architecture and [cli tools](https://github.com/sebastiansandqvist/blixt-cli) that it easy to set up and test your applications.
+Blixt is a state management library for browser applications. Blixt goes hand-in-hand with a recommended architecture and [cli tools](https://github.com/sebastiansandqvist/blixt-cli) that make it easy to set up and test your applications.
 
-While there is not much code and only a few concepts to learn, the Blixt architecture makes it possible to build robust, testable, fast browser applications, and does not lock you into a specific ecosystem of plugins or libraries.
+While there is not much code behind it, the Blixt architecture makes it possible to build robust, testable, fast browser applications, and does not lock you into a specific ecosystem of plugins or libraries.
 
 ## Abstract Overview
 
@@ -10,18 +10,19 @@ While there is not much code and only a few concepts to learn, the Blixt archite
 
 Robust applications do not fall apart when a new developer jumps into old code and adds a feature. Blixt helps make your applications robust in two ways:
 
-1. All application state adheres to a given schema. Having this schema available during development makes it easy to imagine all possible states of your application, which makes adding and changing features easier and less error-prone. But Blixt also verifies that your application remains in a valid state any time it's modified (and gives you tools to visualize the changes as they happen).
+1. All application state adheres to a given schema. Having this schema available during development makes it easy to imagine all possible states of your application, which makes adding and changing features easier and less error-prone. Blixt also verifies that your application remains in a valid state any time it's modified (and gives you tools to visualize the changes as they happen).
 
 2. Blixt makes explicit which state is shared in your application, and keeps all the code that is allowed to modify parts of that shared state in one place. When debugging, you need only look at the small subset of your code that can modify a specific branch of your application's state.
 
 #### Testable Applications
 
-A core concept in Blixt is the separation of application state (think of a JSON tree) from the actions that can modify it. You typically want to test an action by asserting that it makes the desired changes to your state tree. With Blixt, within your tests you can create just the subtree you want to test, run your action with that state subtree, and run assertions against the result. You can even test code that modifies shared state in this way (by creating a new subtree for each test), which means that there is no reason to have one test dependent upon actually shared state or the results of another test.
+A core concept in Blixt is the separation of application state (think of a JSON tree) from the actions that can modify it. You typically want to test an action by asserting that it makes the desired changes to your state tree. With Blixt, within your tests you can create just the subtree you want to test, run your action with that state subtree, and run assertions against the result.
 
 #### Fast Applications
 
 An underrated benefit to using small libraries is the reduced parsing time when they're loaded. The core of Blixt is only ~60 lines of code, and the few  (optional) supporting modules are also small. See for yourself:
 
+* [Blixt Core](https://github.com/sebastiansandqvist/blixt/blob/master/index.js)
 * [Blixt Router](https://github.com/sebastiansandqvist/blixt/blob/master/router/index.js)
 * [Blixt Types](https://github.com/sebastiansandqvist/s-types/blob/master/index.js)
 
@@ -31,9 +32,9 @@ Execution time in Blixt is also low, partly because there is not much code to ex
 
 You can use Blixt with any view library. The examples use [Mithril](https://mithril.js.org), but you can substitute the library of your choice and Blixt will play nicely with it.
 
-The provided router is nice to have, since it keeps the current route state with your other shared application state, but it is optional. Some applications don't need a clientside router. Some developers will prefer a hash-based router or perhaps the router that their view library makes use of. All of these router options will work with Blixt.
+The provided router keeps the current route state with your other shared application state, but it is optional. Some applications don't need a clientside router. Some developers will prefer a hash-based router or perhaps the router that their view library makes use of. All of these router options will work with Blixt.
 
-Another nice-to-have is automatic type checking that verifies the validity of a state subtree whenever an action is run. However, this type checking is just a function that is called with the contents of the state subtree after each action. You could instead have this function be a logger that displays your state subtree's contents, or a function that runs a diff between the current and previous states and logs that instead.
+Blixt also allows for automatic type checking that verifies the validity of a state subtree whenever an action is run. However, this type checking is just a function that is called with the contents of the state subtree after each action. You could instead have this function be a logger that displays your state subtree's contents, or a function that runs a diff between the current and previous states and logs that instead.
 
 ## Core Concepts
 
@@ -62,6 +63,7 @@ const todoSchema = T({
 // actions
 const todoActions = blixt.actions({
   updateText(context, input) {
+    // `context` is an object of { state, actions }
     context.state.newTodoText = input;
   },
   addTodo(context) {
@@ -73,6 +75,10 @@ const todoActions = blixt.actions({
   }
 }, todoSchema);
 
+// --------------
+// Option 1:
+// --------------
+
 // bind actions to an instance of state
 const state = todoStateFactory();
 const actions = todoActions.bindTo(state);
@@ -82,6 +88,10 @@ const actions = todoActions.bindTo(state);
 actions.updateText('hello world');
 actions.addTodo();
 
+// --------------
+// Option 2:
+// --------------
+
 // create a module if the state is shared:
 const todoModule = (function() {
   const moduleState = todoStateFactory();
@@ -89,8 +99,9 @@ const todoModule = (function() {
   return { state: moduleState, actions: moduleActions };
 })();
 
-// initialize blixt
-blixt({
+// initialize Blixt
+// (`blixt()` returns an object of bound actions from your modules)
+const app = blixt({
   modules: {
     todo: todoModule
   },
@@ -99,12 +110,12 @@ blixt({
   }
 });
 
-// call global actions that update the global state
+// call actions that update the shared state
 // in app.todo
 app.todo.updateText('foo');
 app.todo.addTodo();
 
-// get the global state of the `todo` module
+// get the shared state of the `todo` module
 blixt.getState('todo');
 /*
   returns:
@@ -127,7 +138,10 @@ Factories are a well-known javascript pattern, and they are used to generate sta
 ```js
 {
   newTodoText: '',
-  todoList: []
+  todoList: [
+    { done: false, text: 'Check the mail' },
+    { done: true, text: 'Buy groceries' }
+  ]
 }
 ```
 
@@ -170,13 +184,13 @@ const state = todoStateFactory();
 const actions = todoActions.bindTo(state);
 ```
 
-Now that the actions are bound, we don't have to manually pass in the state object each time we run an action. To set the `newTodoText`, we can run:
+Now that the actions are bound, you don't have to manually pass in the state object each time you run an action. To set the `newTodoText`, you can run:
 
 ```js
 actions.updateText('hello world');
 ```
 
-To add that as a todo, we can run:
+To add that as a todo, you can run:
 
 ```js
 actions.addTodo();
@@ -225,7 +239,7 @@ You'll see an error in the console if that schema is ever violated. In productio
 
 #### Modules
 
-Modules are used when the actions and state you're working with need to be accessible to multiple parts of your application.
+Modules are used when the actions and state you're working with need to be accessible from multiple parts of your application.
 
 If other parts of your application depend on the todo state in the example above, you would create a module for that state like this:
 
@@ -269,14 +283,12 @@ const app = blixt({
     console.log(actionState); // the state which the action that ran was bound to (can be null)
     m.redraw(); // if using mithril, re-render the page
     // app state could look something like:
-    // {
-    //   todo: { newTodoText: '', todoList: [] }
-    // }
+    // { todo: { newTodoText: '', todoList: [] } }
   }
 });
 ```
 
-`onUpdate` runs synchronously after every action, but using the `batch` helper in `helpers/batch.js`, you can run `onUpdate` after all actions in the current tick have run. You could also use your own throttle or debounce function instead.
+`onUpdate` runs synchronously after every action, but using the `batch` helper in [`helpers/batch.js`](https://github.com/sebastiansandqvist/blixt/blob/master/helpers/batch.js), you can run `onUpdate` after all actions in the current tick have run. You could also use your own throttle or debounce function instead.
 
 ```js
 onUpdate: batch(function(appState, actionName, actionState) {
@@ -286,7 +298,7 @@ onUpdate: batch(function(appState, actionName, actionState) {
 
 #### `getState()`
 
-Whenever you want to access shared state that was provided to blixt through your connected modules, you can use `blixt.getState()`.
+Whenever you want to access shared state that was provided to Blixt through your connected modules, you can use `blixt.getState()`.
 
 With no arguments, this returns an object of all the shared state. You can pass arguments to `getState()` to traverse down a path to get just a specific subtree or property. For example, to get the first item in the todo list:
 
