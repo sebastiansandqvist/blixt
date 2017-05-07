@@ -38,7 +38,11 @@ Blixt also allows for automatic type checking that verifies the validity of a st
 
 ## Core Concepts
 
-There are only three main things to understand when it comes to Blixt: **state factories**, **actions**, and **modules**. (Modules just combine state factories and actions.)
+There are only three main things to understand when it comes to Blixt:
+
+* [**State Factories**](#state-factories)
+* [**Actions**](#actions)
+* [**Modules**](#modules) (Modules just combine state factories and actions.)
 
 This brief example will result in the following code:
 
@@ -129,7 +133,7 @@ blixt.getState('todo');
 
 Here you'll find an explanation for each part of that example:
 
-#### State factories
+### State factories
 
 Factories are a well-known javascript pattern, and they are used to generate state subtrees in Blixt. Suppose you have a todo list. Its state might look something like this:
 
@@ -156,7 +160,7 @@ function todoStateFactory() {
 
 Since the factory is just a function, you could pass in arguments to have different instances of your todo list initialize with different states.
 
-#### Actions
+### Actions
 
 Actions are functions that can work with a specific type of state. For our todo list example, we could have the following actions:
 
@@ -235,7 +239,7 @@ const todoActions = blixt.actions({
 
 You'll see an error in the console if that schema is ever violated. In production, you can disable the type checking by setting `T.disabled` to true.
 
-#### Modules
+### Modules
 
 Modules are used when the actions and state you're working with need to be accessible from multiple parts of your application.
 
@@ -294,7 +298,7 @@ onUpdate: batch(function(appState, actionName, actionState) {
 })
 ```
 
-#### `getState()`
+### `getState()`
 
 Whenever you want to access shared state that was provided to Blixt through your connected modules, you can use `blixt.getState()`.
 
@@ -304,3 +308,4 @@ With no arguments, this returns an object of all the shared state. You can pass 
 blixt.getState('todo', 'todoList', 0);
 // equivalent to blixt.getState()['todo']['todoList'][0];
 ```
+
