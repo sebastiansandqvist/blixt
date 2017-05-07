@@ -1,8 +1,8 @@
 # Blixt
 
-Blixt is a state management library that goes hand-in-hand with a recommended architecture and [cli tools](https://github.com/sebastiansandqvist/blixt-cli) that make common tasks within that architecture very quick to implement.
+Blixt is a state management library that goes hand-in-hand with a recommended architecture and [cli tools](https://github.com/sebastiansandqvist/blixt-cli) that it easy to set up and test your application.
 
-While there is very little code and only a few concepts to learn, the Blixt architecture makes it possible to build robust, testable, fast browser applications, and does not lock you into a specific ecosystem of plugins or libraries.
+While there is not much code and only a few concepts to learn, the Blixt architecture makes it possible to build robust, testable, fast browser applications, and does not lock you into a specific ecosystem of plugins or libraries.
 
 ## Abstract Overview
 
