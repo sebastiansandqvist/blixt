@@ -20,7 +20,7 @@ A core concept in Blixt is the separation of application state (think of a JSON 
 
 #### Fast Applications
 
-An underrated benefit to using small libraries is the reduced parsing time when they're loaded. The core of Blixt is only ~60 lines of code, and the few  (optional) supporting modules are also small. See for yourself:
+An underrated benefit to using small libraries is the reduced parsing time when they're loaded. The core of Blixt is under 100 lines of code, and the few  (optional) supporting modules are also small. See for yourself:
 
 * [Blixt Core](https://github.com/sebastiansandqvist/blixt/blob/master/index.js)
 * [Blixt Router](https://github.com/sebastiansandqvist/blixt/blob/master/router/index.js)
