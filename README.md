@@ -1,6 +1,6 @@
 # Blixt
 
-Blixt is a state management library that goes hand-in-hand with a recommended architecture and [cli tools](https://github.com/sebastiansandqvist/blixt-cli) that it easy to set up and test your application.
+Blixt is a state management library for browser applications. Blixt goes hand-in-hand with a recommended architecture and [cli tools](https://github.com/sebastiansandqvist/blixt-cli) that it easy to set up and test your applications.
 
 While there is not much code and only a few concepts to learn, the Blixt architecture makes it possible to build robust, testable, fast browser applications, and does not lock you into a specific ecosystem of plugins or libraries.
 
@@ -10,13 +10,13 @@ While there is not much code and only a few concepts to learn, the Blixt archite
 
 Robust applications do not fall apart when a new developer jumps into old code and adds a feature. Blixt helps make your applications robust in two ways:
 
-1. All application state adheres to a given schema. Having this schema visible during development makes it easy to imagine all possible states of your application, which makes adding and changing features easier and less error-prone. But Blixt also verifies that your application remains in a valid state any time it's modified (and gives you tools to visualize the changes as they happen).
+1. All application state adheres to a given schema. Having this schema available during development makes it easy to imagine all possible states of your application, which makes adding and changing features easier and less error-prone. But Blixt also verifies that your application remains in a valid state any time it's modified (and gives you tools to visualize the changes as they happen).
 
 2. Blixt makes explicit which state is shared in your application, and keeps all the code that is allowed to modify parts of that shared state in one place. When debugging, you need only look at the small subset of your code that can modify a specific branch of your application's state.
 
 #### Testable Applications
 
-A core concept in Blixt is the separation of application state (think of a JSON tree) from the actions that can modify it. You typically want to test an action by asserting that it makes the desired changes to your state tree. Even better, with Blixt you can create just the subtree you want to test, run your action with that subtree, and run assertions against the resulting subtree. You can even test code that modifies shared state in this way, which means that there is no reason to have one test dependent upon the results of another test.
+A core concept in Blixt is the separation of application state (think of a JSON tree) from the actions that can modify it. You typically want to test an action by asserting that it makes the desired changes to your state tree. With Blixt, within your tests you can create just the subtree you want to test, run your action with that state subtree, and run assertions against the result. You can even test code that modifies shared state in this way (by creating a new subtree for each test), which means that there is no reason to have one test dependent upon actually shared state or the results of another test.
 
 #### Fast Applications
 
@@ -37,7 +37,88 @@ Another nice-to-have is automatic type checking that verifies the validity of a 
 
 ## Core Concepts
 
-There are only three main things to understand when it comes to Blixt: state factories, actions, and modules (which just combine state factories and actions).
+There are only three main things to understand when it comes to Blixt: **state factories**, **actions**, and **modules**. (Modules just combine state factories and actions.)
+
+This brief example will result in the following code:
+
+```js
+// state factory
+function todoStateFactory() {
+  return {
+    newTodoText: '',
+    todoList: []
+  };
+}
+
+// optional type checking
+const todoSchema = T({
+  newTodoText: T.string,
+  todoList: T.arrayOf(T.schema({
+    done: T.bool,
+    text: T.string
+  }))
+});
+
+// actions
+const todoActions = blixt.actions({
+  updateText(context, input) {
+    context.state.newTodoText = input;
+  },
+  addTodo(context) {
+    context.state.todoList.push({
+      done: false,
+      text: context.state.newTodoText
+    });
+    context.actions.updateText('');
+  }
+}, todoSchema);
+
+// bind actions to an instance of state
+const state = todoStateFactory();
+const actions = todoActions.bindTo(state);
+
+// call actions that update the
+// local `state`
+actions.updateText('hello world');
+actions.addTodo();
+
+// create a module if the state is shared:
+const todoModule = (function() {
+  const moduleState = todoStateFactory();
+  const moduleActions = todoActions.bindTo(moduleState);
+  return { state: moduleState, actions: moduleActions };
+})();
+
+// initialize blixt
+blixt({
+  modules: {
+    todo: todoModule
+  },
+  onUpdate(appState, actionName, actionState) {
+    // handle updates here (could log results or re-render your views)
+  }
+});
+
+// call global actions that update the global state
+// in app.todo
+app.todo.updateText('foo');
+app.todo.addTodo();
+
+// get the global state of the `todo` module
+blixt.getState('todo');
+/*
+  returns:
+  {
+    newTodoText: '',
+    todos: [
+      { done: false, text: 'hello world'},
+      { done: false, text: 'foo'}
+    ]
+  }
+ */
+```
+
+Here you'll find an explanation for each part of that example:
 
 #### State factories
 
@@ -45,8 +126,8 @@ Factories are a well-known javascript pattern, and they are used to generate sta
 
 ```js
 {
-	newTodoText: '',
-	todoList: []
+  newTodoText: '',
+  todoList: []
 }
 ```
 
@@ -54,10 +135,10 @@ A state factory is just a function that returns a new state object with that sha
 
 ```js
 function todoStateFactory() {
-	return {
-		newTodoText: '',
-		todoList
-	};
+  return {
+    newTodoText: '',
+    todoList: []
+  };
 }
 ```
 
@@ -69,20 +150,20 @@ Actions are functions that can work with a specific type of state. For our todo 
 
 ```js
 const todoActions = blixt.actions({
-	updateText(context, input) {
-		context.state.newTodoText = input;
-	},
-	addTodo(context) {
-		context.state.todoList.push({
-			done: false,
-			text: context.state.newTodoText
-		});
-		context.actions.updateText('');
-	}
+  updateText(context, input) {
+    context.state.newTodoText = input;
+  },
+  addTodo(context) {
+    context.state.todoList.push({
+      done: false,
+      text: context.state.newTodoText
+    });
+    context.actions.updateText('');
+  }
 });
 ```
 
-Actions must then be bound to an instance of some state that they're qualified to operate on. These actions would only work well on a state tree with a `newTodoText` field and a `todoList` array, for example. Binding actions is similar to `Function.prototype.bind`, except that instead of setting the `this` context to something else, we use the first argument of the action instead (since it's more explicit than `this`).
+Actions must then be bound to an instance of some state that they're qualified to operate on. These actions would only work well on a state tree with a `newTodoText` field and a `todoList` array, for example. Binding actions is similar to `Function.prototype.bind`, except that instead of setting `this`, we pass the context in as the first argument of the action instead (since it's more explicit than `this`).
 
 ```js
 const state = todoStateFactory();
@@ -108,7 +189,7 @@ Notice that in `todoActions`, the first argument is not just the `state` to whic
 
 Because each action has access to the other bound actions, it is possible for actions to call one another. In this case, we are able to have the `addTodo` action call the `updateText` action directly.
 
-If it isn't clear already: the first argument to each action is its context (state and actions), and all other arguments are whatever arguments the action was called with.
+If it isn't clear already: the first argument to each action is its context (an object of `state` and bound `actions`), and all other arguments are whatever arguments the action was called with.
 
 Optionally, when creating actions, you can supply a callback function to be run whenever an action is complete. This was made with type checking in mind, but could be used for other things.
 
@@ -117,30 +198,30 @@ Optionally, when creating actions, you can supply a callback function to be run 
 // `todoSchema` is a function that is called with the current state object
 // after each action -- it ensures that the state adheres to this schema:
 const todoSchema = T({
-	newTodoText: T.string,
-	todoList: T.arrayOf(T.schema({
-		done: T.bool,
-		text: T.string
-	}))
+  newTodoText: T.string,
+  todoList: T.arrayOf(T.schema({
+    done: T.bool,
+    text: T.string
+  }))
 });
 
-// change the above actions definition to this,
-// passing in the typechecker as the second argument
+// Now we are passing in the typechecker as the second argument
+// to blixt.actions()
 const todoActions = blixt.actions({
-	updateText(context, input) {
-		context.state.newTodoText = input;
-	},
-	addTodo(context) {
-		context.state.todoList.push({
-			done: false,
-			text: context.state.newTodoText
-		});
-		context.actions.updateText('');
-	}
+  updateText(context, input) {
+    context.state.newTodoText = input;
+  },
+  addTodo(context) {
+    context.state.todoList.push({
+      done: false,
+      text: context.state.newTodoText
+    });
+    context.actions.updateText('');
+  }
 }, todoSchema);
 ```
 
-You'll see an error in the console if that schema is ever violated. In production, you can disable the type checking by setting `T.disabled` to true. In your test environment, you can set `T.throws` to true to have type errors thrown rather than just logged via `console.error`.
+You'll see an error in the console if that schema is ever violated. In production, you can disable the type checking by setting `T.disabled` to true.
 
 #### Modules
 
@@ -150,21 +231,21 @@ If other parts of your application depend on the todo state in the example above
 
 ```js
 const todoModule = (function() {
-	const state = todoStateFactory();
-	const actions = todoActions.bindTo(state);
-	return { state, actions };
+  const state = todoStateFactory();
+  const actions = todoActions.bindTo(state);
+  return { state, actions };
 })();
 ```
 
-In short, a module is just an object of `{ state, actions }`, where the actions are already bound to that state.
+A module is just an object of `{ state, actions }`, where the actions are already bound to that state.
 
 Modules are connected to the application as a whole by passing them to the `blixt` function.
 
 ```js
 const app = blixt({
-	modules: {
-		todo: todoModule
-	}
+  modules: {
+    todo: todoModule
+  }
 })
 ```
 
@@ -179,19 +260,37 @@ The object passed to the `blixt` function can also contain a method called `onUp
 
 ```js
 const app = blixt({
-	modules: {
-		todo: todoModule
-	},
-	onUpdate: function(appState, actionName, actionState) {
-		console.log(appState); // the entire shared state of your application
-		console.log(actionName); // the name of the action that ran and caused an update
-		console.log(actionState); // the state which the action that ran was bound to (can be null)
-		m.redraw(); // if using mithril, re-render the page
-		// app state could look something like:
-		// {
-		//   todo: { newTodoText: '', todoList: [] }
-		// }
-	}
+  modules: {
+    todo: todoModule
+  },
+  onUpdate: function(appState, actionName, actionState) {
+    console.log(appState); // the state of all shared modules
+    console.log(actionName); // the name of the action that ran and caused an update
+    console.log(actionState); // the state which the action that ran was bound to (can be null)
+    m.redraw(); // if using mithril, re-render the page
+    // app state could look something like:
+    // {
+    //   todo: { newTodoText: '', todoList: [] }
+    // }
+  }
 });
 ```
 
+`onUpdate` runs synchronously after every action, but using the `batch` helper in `helpers/batch.js`, you can run `onUpdate` after all actions in the current tick have run. You could also use your own throttle or debounce function instead.
+
+```js
+onUpdate: batch(function(appState, actionName, actionState) {
+  //...  
+})
+```
+
+#### `getState()`
+
+Whenever you want to access shared state that was provided to blixt through your connected modules, you can use `blixt.getState()`.
+
+With no arguments, this returns an object of all the shared state. You can pass arguments to `getState()` to traverse down a path to get just a specific subtree or property. For example, to get the first item in the todo list:
+
+```js
+blixt.getState('todo', 'todoList', 0);
+// equivalent to blixt.getState()['todo']['todoList'][0];
+```
