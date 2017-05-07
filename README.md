@@ -118,15 +118,13 @@ app.todo.addTodo();
 // get the shared state of the `todo` module
 blixt.getState('todo');
 /*
-  returns:
-  {
+  returns: {
     newTodoText: '',
     todos: [
-      { done: false, text: 'hello world'},
-      { done: false, text: 'foo'}
+      { done: false, text: 'foo' }
     ]
   }
- */
+*/
 ```
 
 Here you'll find an explanation for each part of that example:
