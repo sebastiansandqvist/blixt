@@ -1,6 +1,6 @@
 {
   "name": "blixt",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A clientside web application framework",
   "author": "sebastian sandqvist",
   "license": "ISC",
@@ -33,6 +33,5 @@
     "rollup-watch": "3.2.2",
     "testesterone": "1.1.1"
   },
-  "dependencies": {
-  }
+  "dependencies": {}
 }
