@@ -33,5 +33,7 @@
     "rollup-watch": "3.2.2",
     "testesterone": "1.1.1"
   },
-  "dependencies": {}
+  "dependencies": {
+    "s-types": "1.4.1"
+  }
 }

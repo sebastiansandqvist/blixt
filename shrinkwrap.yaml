@@ -1,0 +1,6 @@
+dependencies:
+  s-types@1.4.1: 1.4.1
+packages:
+  /s-types/1.4.1: 363cc5f63620af647854d86f72dc1470a3ca184a
+registry: 'https://registry.npmjs.org/'
+version: 2
